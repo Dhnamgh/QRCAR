@@ -98,7 +98,14 @@ if menu == "📥 Tải dữ liệu":
     st.header("📥 Tải tập tin dữ liệu xe (Excel)")
     file = st.file_uploader("Tải lên tập tin Excel (.xlsx)", type=["xlsx"])
     if file:
-        df = pd.read_excel(file)
+        import requests
+        import io
+
+        url = "https://raw.githubusercontent.com/Dhnamgh/QRCAR/main/dsxe.xlsx"
+        response = requests.get(url)
+        df = pd.read_excel(io.BytesIO(response.content))
+
+        
         required_cols = ["STT", "Họ tên", "Biển số", "Mã thẻ", "Mã đơn vị", "Tên đơn vị", "Chức vụ", "Số điện thoại", "Email"]
         for col in required_cols:
             if col not in df.columns:
