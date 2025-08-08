@@ -18,7 +18,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # === Google Sheet URL ===
-SHEET_URL = "https://docs.google.com/spreadsheets/d/18fQqPJ5F9VZdWvkuQq5K7upQHeC7UfZX"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/18fQqPJ5F9VZdWvkuQq5K7upQHeC7UfZX/edit?usp=sharing"
 sheet = client.open_by_url(SHEET_URL).sheet1
 
 # === Cấu hình app ===
