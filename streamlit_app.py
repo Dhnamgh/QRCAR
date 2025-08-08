@@ -1,270 +1,149 @@
+# qrcar_app.py
 import streamlit as st
 import pandas as pd
+import gspread
 import qrcode
-from PIL import Image, ImageDraw, ImageFont
 import io
-import os
 import zipfile
-import re
-import smtplib
-from email.message import EmailMessage
+import os
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Cấu hình
-QR_LINK_PREFIX = "https://ump.edu.vn/thongtinxe"
-FONT_PATH = "arial.ttf"
-LOGO_PATH = "D:/CAR/background.png"
-EMAIL_DOMAIN = "@ump.edu.vn"
+# === Cấu hình kết nối Google Sheet ===
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+creds_dict = st.secrets["gcp_service_account"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
 
-# Khởi tạo dữ liệu trong session
-if "df" not in st.session_state:
-    st.session_state.df = pd.DataFrame()
+# === Google Sheet URL ===
+SHEET_URL = "https://docs.google.com/spreadsheets/d/18fQqPJ5F9VZdWvkuQq5K7upQHeC7UfZX"
+sheet = client.open_by_url(SHEET_URL).sheet1
 
-# Hàm chuẩn hóa họ tên
-def chuan_hoa_ho_ten(text):
-    return ' '.join([w.capitalize() for w in text.strip().lower().split()])
+# === Cấu hình app ===
+PASSWORD = "123456"
+QR_LINK_PREFIX = "https://YOUR-APP-NAME.streamlit.app/?qr_id="  # Update sau khi deploy
+QR_FOLDER = "qr_images"
+EXCEL_FILE = "thong_tin_xe.xlsx"
+ZIP_FILE = "qr_all.zip"
 
-# Hàm chuẩn hóa biển số xe
-def chuan_hoa_bien_so(text):
-    text = str(text).strip().upper()
-    text = re.sub(r"[^A-Z0-9]", "", text)
-    match = re.match(r"^(\d{2}[A-Z])(\d{3})(\d{2})$", text)
-    if match:
-        return f"{match.group(1)}-{match.group(2)}.{match.group(3)}"
-    return text
+COLUMN_MAP = {
+    'STT': 'stt',
+    'Họ tên': 'ten',
+    'Biển số': 'bsx',
+    'Mã thẻ': 'qr_id',
+    'Mã đơn vị': 'madonvi',
+    'Tên đơn vị': 'tendonvi',
+    'Chức vụ': 'chucvu',
+    'Số điện thoại': 'dienthoai',
+    'Email': 'email'
+}
 
-# Hàm tạo mã QR
-def tao_ma_qr(ma_the, ma_donvi):
-    qr = qrcode.QRCode(box_size=10, border=2)
-    full_link = f"{QR_LINK_PREFIX}?id={ma_the}"
-    qr.add_data(full_link)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    draw = ImageDraw.Draw(img)
+# === Hàm xử lý ===
+def get_data():
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    df = df.rename(columns=COLUMN_MAP)
+    return df
 
-    try:
-        font = ImageFont.truetype(FONT_PATH, 20)
-        bbox = draw.textbbox((0, 0), ma_donvi, font=font)
-    except Exception:
-        font = ImageFont.load_default()
-        bbox = draw.textbbox((0, 0), ma_donvi)
+def append_row(row):
+    sheet.append_row(row)
 
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    img_width, img_height = img.size
-    x = (img_width - text_width) // 2
-    y = img_height - text_height - 10
-    draw.text((x, y), ma_donvi, font=font, fill="black")
-    return img
+def create_qr(data: str):
+    qr_img = qrcode.make(data)
+    buf = io.BytesIO()
+    qr_img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf
 
-# Gửi email thông báo
-def gui_email(nguoi_nhan, tieu_de, noi_dung, qr_data):
-    try:
-        msg = EmailMessage()
-        msg['Subject'] = tieu_de
-        msg['From'] = 'he-thong@ump.edu.vn'
-        msg['To'] = nguoi_nhan
-        msg.set_content(noi_dung)
-        msg.add_attachment(qr_data, maintype='image', subtype='png', filename='ma_qr.png')
+def create_qr_images(df):
+    if 'qr_id' not in df.columns:
+        raise KeyError("Thiếu cột 'qr_id' trong dữ liệu")
+    if not os.path.exists(QR_FOLDER):
+        os.makedirs(QR_FOLDER)
+    for _, row in df.iterrows():
+        qr_id = row['qr_id']
+        info_link = QR_LINK_PREFIX + qr_id
+        img = qrcode.make(info_link)
+        img.save(os.path.join(QR_FOLDER, f"qr_{qr_id}.png"))
 
-        with smtplib.SMTP('localhost') as server:
-            server.send_message(msg)
-        return True
-    except Exception:
-        return False
+def create_zip():
+    with zipfile.ZipFile(ZIP_FILE, 'w') as zipf:
+        for filename in os.listdir(QR_FOLDER):
+            zipf.write(os.path.join(QR_FOLDER, filename), arcname=filename)
 
-# Layout
-st.set_page_config(layout="wide")
-col1, col2 = st.columns([1, 6])
-with col1:
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, width=130)
-with col2:
-    st.markdown("""
-        <h1 style='margin-bottom: 0; color: navy;'>Phần mềm Quản lý xe ra vào cơ quan</h1>
-        <h3 style='margin-top: 0;'>Cơ sở 217 Hồng Bàng - Đại học Y Dược TP.HCM</h3>
-    """, unsafe_allow_html=True)
+def export_excel(df):
+    df.to_excel(EXCEL_FILE, index=False)
 
-menu = st.sidebar.radio("📌 Chọn chức năng", [
-    "📥 Tải dữ liệu", 
-    "📄 Dữ liệu hiện tại", 
-    "🆕 Đăng ký xe mới", 
-    "🔍 Tra cứu", 
-    "📧 Thông báo kết quả đăng ký",
-    "💬 Góp ý cải tiến",
-    "🔎 Thông tin xe từ mã QR"
-])
+# === Giao diện ===
+st.set_page_config(page_title="Quản lý xe bằng QR", layout="wide")
 
-if menu == "📥 Tải dữ liệu":
-    st.header("📥 Tải tập tin dữ liệu xe (Excel)")
-    file = st.file_uploader("Tải lên tập tin Excel (.xlsx)", type=["xlsx"])
-    if file:
-        import requests
-        import io
+with st.sidebar:
+    st.image("background.png", width=200)
+    menu = st.radio("\U0001F4CD Chọn chức năng", [
+        "\U0001F4CB Tải dữ liệu về máy",
+        "\U0001F697 Đăng ký xe mới",
+        "\U0001F50D Tra cứu từ QR",
+        "\U0001F4C4 Xem danh sách xe"
+    ])
 
-        url = "https://raw.githubusercontent.com/Dhnamgh/QRCAR/main/dsxe.xlsx"
-        response = requests.get(url)
-        df = pd.read_excel(io.BytesIO(response.content))
+if menu == "\U0001F4CB Tải dữ liệu về máy":
+    df = get_data()
+    export_excel(df)
+    create_qr_images(df)
+    create_zip()
+    st.success("\u2705 Dữ liệu và mã QR đã được tạo.")
+    st.download_button("\U0001F4E5 Tải Excel", open(EXCEL_FILE, "rb"), file_name=EXCEL_FILE)
+    st.download_button("\U0001F4E6 Tải tất cả mã QR (.zip)", open(ZIP_FILE, "rb"), file_name=ZIP_FILE)
+    st.subheader("\U0001F4C4 Danh sách xe")
+    st.dataframe(df, use_container_width=True, height=600)
 
-        
-        required_cols = ["STT", "Họ tên", "Biển số", "Mã thẻ", "Mã đơn vị", "Tên đơn vị", "Chức vụ", "Số điện thoại", "Email"]
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = ""
-        df = df[required_cols]
-        df["Biển số"] = df["Biển số"].astype(str).apply(chuan_hoa_bien_so)
+elif menu == "\U0001F697 Đăng ký xe mới":
+    df = get_data()
+    st.subheader("\U0001F697 Nhập thông tin xe mới")
+    tendonvi_list = df['tendonvi'].dropna().unique().tolist()
+    tendonvi = st.selectbox("Tên đơn vị", sorted(tendonvi_list))
+    madonvi = df[df['tendonvi'] == tendonvi]['madonvi'].iloc[0] if tendonvi else ""
 
-        for i, row in df.iterrows():
-            if not row["Mã thẻ"] or pd.isna(row["Mã thẻ"]):
-                ma_donvi = row["Mã đơn vị"]
-                stt = row["STT"]
-                try:
-                    df.at[i, "Mã thẻ"] = f"{ma_donvi}{int(stt):03}"
-                except:
-                    df.at[i, "Mã thẻ"] = ""
+    with st.form("form_dangky"):
+        ten = st.text_input("Họ tên")
+        bsx = st.text_input("Biển số")
+        st.text_input("Mã đơn vị", madonvi, disabled=True)
+        submit = st.form_submit_button("\u2795 Đăng ký")
 
-        st.session_state.df = df.copy()
-        st.success("✅ Tải dữ liệu thành công.")
-        st.dataframe(df)
-
-elif menu == "📄 Dữ liệu hiện tại":
-    df = st.session_state.get("df", pd.DataFrame())
-    if df.empty:
-        st.warning("⚠️ Chưa có dữ liệu. Vui lòng tải lên trước.")
-    else:
-        st.header("📄 Danh sách xe hiện tại")
-        st.dataframe(df)
-
-        to_excel = io.BytesIO()
-        with pd.ExcelWriter(to_excel, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False)
-        st.download_button("📥 Tải dữ liệu Excel", to_excel.getvalue(), file_name="dsxe_capnhat.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-        if st.button("📦 Tạo và tải mã QR cho toàn bộ xe"):
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                for _, row in df.iterrows():
-                    ma_the = str(row["Mã thẻ"])
-                    ma_donvi = str(row["Mã đơn vị"])
-                    img = tao_ma_qr(ma_the, ma_donvi)
-                    img_byte_arr = io.BytesIO()
-                    img.save(img_byte_arr, format='PNG')
-                    zip_file.writestr(f"{ma_the}.png", img_byte_arr.getvalue())
-
-            st.download_button(
-                label="📥 Tải tất cả mã QR (.zip)",
-                data=zip_buffer.getvalue(),
-                file_name="ma_qr_tatca.zip",
-                mime="application/zip"
-            )
-
-elif menu == "🔎 Thông tin xe từ mã QR":
-    df = st.session_state.get("df", pd.DataFrame())
-    params = st.query_params
-    ma_the = params.get("id", [None])[0]
-
-    if not ma_the:
-        st.warning("⚠️ Không có mã thẻ nào được cung cấp từ liên kết.")
-    else:
-        password_input = st.text_input("🔒 Nhập mật khẩu để xem thông tin xe", type="password")
-        correct_password = "ump123"  # có thể thay bằng mã hóa hoặc lưu ở nơi khác
-
-        if password_input == correct_password:
-            xe_info = df[df["Mã thẻ"] == ma_the]
-            if xe_info.empty:
-                st.error(f"Không tìm thấy thông tin xe với mã thẻ: {ma_the}")
-            else:
-                st.success(f"✅ Thông tin xe có mã thẻ: {ma_the}")
-                st.dataframe(xe_info.reset_index(drop=True))
-        elif password_input:
-            st.error("🚫 Mật khẩu không đúng.")
-
-
-elif menu == "🆕 Đăng ký xe mới":
-    st.header("🆕 Đăng ký xe mới")
-    df = st.session_state.get("df", pd.DataFrame())
-    if df.empty:
-        st.warning("⚠️ Vui lòng tải dữ liệu trước.")
-    else:
-        with st.form("form_dk"):
-            ho_ten = st.text_input("Họ tên")
-            bien_so = st.text_input("Biển số xe")
-            ten_donvi = st.selectbox("Tên đơn vị", sorted(df["Tên đơn vị"].dropna().unique()))
-            chuc_vu = st.text_input("Chức vụ")
-            so_dt = st.text_input("Số điện thoại")
-            email = st.text_input("Email (chỉ nhập trước @ump.edu.vn)")
-            submitted = st.form_submit_button("Đăng ký")
-
-        if submitted:
-            ho_ten = chuan_hoa_ho_ten(ho_ten)
-            bien_so = chuan_hoa_bien_so(bien_so)
-            ma_donvi = df[df["Tên đơn vị"] == ten_donvi]["Mã đơn vị"].iloc[0]
-            next_stt = df["STT"].max() + 1
-            ma_the = f"{ma_donvi}{int(next_stt):03}"
-
-            new_row = {
-                "STT": next_stt,
-                "Họ tên": ho_ten,
-                "Biển số": bien_so,
-                "Mã thẻ": ma_the,
-                "Mã đơn vị": ma_donvi,
-                "Tên đơn vị": ten_donvi,
-                "Chức vụ": chuc_vu,
-                "Số điện thoại": so_dt,
-                "Email": email + EMAIL_DOMAIN
-            }
-            st.session_state.df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            img = tao_ma_qr(ma_the, ma_donvi)
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            st.image(buf.getvalue(), caption="Mã QR của bạn")
-            st.download_button("📥 Tải mã QR", buf.getvalue(), file_name="ma_qr.png", mime="image/png")
-            st.success("✅ Đăng ký thành công.")
-
-elif menu == "🔍 Tra cứu":
-    st.header("🔍 Tra cứu thông tin xe")
-    df = st.session_state.get("df", pd.DataFrame())
-    bien_so_input = st.text_input("Nhập biển số xe cần tra cứu")
-    if bien_so_input:
-        bien_so_input = chuan_hoa_bien_so(bien_so_input)
-        ket_qua = df[df["Biển số"] == bien_so_input]
-        if not ket_qua.empty:
-            st.write("✅ Tìm thấy thông tin xe:")
-            st.dataframe(ket_qua)
+    if submit:
+        if not all([ten, bsx, tendonvi]):
+            st.error("\u274C Vui lòng nhập đầy đủ")
         else:
-            st.error("🚫 Không tìm thấy thông tin xe này.")
+            stt = len(df) + 1
+            qr_id = f"QR{stt:03}"
+            append_row([stt, ten, bsx, qr_id, madonvi, tendonvi, '', '', ''])
+            qr_url = QR_LINK_PREFIX + qr_id
+            img = create_qr(qr_url)
+            st.success(f"\u2705 Đăng ký thành công với mã QR: {qr_id}")
+            st.image(img, caption=f"QR cho {qr_id}", use_container_width=True)
+            st.download_button("\U0001F4BE Tải mã QR", img, file_name=f"qr_{qr_id}.png")
 
-elif menu == "📧 Thông báo kết quả đăng ký":
-    st.header("📧 Gửi thông báo kết quả đăng ký")
-    df = st.session_state.get("df", pd.DataFrame())
-    email_ten = st.text_input("Nhập tên email người nhận (trước @ump.edu.vn)")
-    ket_qua = st.radio("Kết quả đăng ký", ["Đã duyệt", "Không duyệt"])
-    ly_do = ""
-    if ket_qua == "Không duyệt":
-        ly_do = st.text_area("Nhập lý do không duyệt")
-
-    if st.button("Gửi Email"):
-        nguoi_nhan = email_ten + EMAIL_DOMAIN
-        noi_dung = f"Thông báo kết quả đăng ký: {ket_qua}."
-        if ket_qua == "Không duyệt":
-            noi_dung += f"\nLý do: {ly_do}"
-
-        ket_qua_df = df[df["Email"] == nguoi_nhan]
-        if not ket_qua_df.empty:
-            ma_the = ket_qua_df.iloc[0]["Mã thẻ"]
-            ma_donvi = ket_qua_df.iloc[0]["Mã đơn vị"]
-            qr_img = tao_ma_qr(ma_the, ma_donvi)
-            buf = io.BytesIO()
-            qr_img.save(buf, format="PNG")
-            sent = gui_email(nguoi_nhan, "Kết quả đăng ký xe", noi_dung, buf.getvalue())
-            if sent:
-                st.success("✅ Gửi email thành công.")
+elif menu == "\U0001F50D Tra cứu từ QR":
+    st.subheader("\U0001F50D Tra cứu thông tin xe từ mã QR")
+    qr_id = st.query_params.get("qr_id", [""])[0]
+    if not qr_id:
+        st.warning("\u274C Không có mã QR trong URL")
+    else:
+        pw = st.text_input("\U0001F511 Nhập mật khẩu để xem thông tin", type="password")
+        if pw == PASSWORD:
+            df = get_data()
+            row = df[df['qr_id'] == qr_id]
+            if not row.empty:
+                st.success("\u2705 Thông tin xe:")
+                st.write(row.iloc[0])
             else:
-                st.error("🚫 Gửi email thất bại.")
-        else:
-            st.warning("⚠️ Không tìm thấy người nhận trong danh sách đăng ký.")
+                st.error("\u274C Không tìm thấy xe với mã này")
+        elif pw:
+            st.error("\u274C Mật khẩu không đúng")
 
-elif menu == "💬 Góp ý cải tiến":
-    st.header("💬 Góp ý cải tiến hệ thống")
-    ykien = st.text_area("Nhập nội dung góp ý")
-    if st.button("Gửi góp ý"):
-        st.success("✅ Cảm ơn bạn đã góp ý. Chúng tôi sẽ tiếp thu và cải tiến hệ thống.")
+elif menu == "\U0001F4C4 Xem danh sách xe":
+    df = get_data()
+    st.subheader("\U0001F4C4 Danh sách toàn bộ xe")
+    st.dataframe(df, use_container_width=True)
