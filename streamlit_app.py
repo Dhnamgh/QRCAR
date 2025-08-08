@@ -23,7 +23,7 @@ sheet = client.open_by_url(SHEET_URL).sheet1
 
 # === Cấu hình app ===
 PASSWORD = "123456"
-QR_LINK_PREFIX = "https://YOUR-APP-NAME.streamlit.app/?qr_id="  # Update sau khi deploy
+QR_LINK_PREFIX = "https://qrcarump.streamlit.app/?qr_id="
 QR_FOLDER = "qr_images"
 EXCEL_FILE = "thong_tin_xe.xlsx"
 ZIP_FILE = "qr_all.zip"
