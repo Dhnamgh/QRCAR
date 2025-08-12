@@ -6,29 +6,33 @@ from oauth2client.service_account import ServiceAccountCredentials
 scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 
-# Đọc credentials từ Streamlit secrets
 try:
-    creds_dict = st.secrets["google_service_account"]
-    # Sửa lại private_key để đảm bảo xuống dòng đúng chuẩn
-    creds_dict = dict(creds_dict)  # copy để tránh lỗi không cho gán
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    # Đọc credentials từ Streamlit secrets
+    creds_dict = dict(st.secrets["google_service_account"])  # copy để cho phép sửa
+    
+    # Xử lý private_key cho đúng định dạng PEM
+    pk = creds_dict["private_key"].replace("\\n", "\n").strip()
+    if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+        pk = "-----BEGIN PRIVATE KEY-----\n" + pk
+    if not pk.endswith("-----END PRIVATE KEY-----"):
+        pk = pk + "\n-----END PRIVATE KEY-----"
+    creds_dict["private_key"] = pk
+
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
     st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
     st.stop()
 
-# ID Google Sheet
+# ===================== MỞ GOOGLE SHEET =====================
 SHEET_ID = "18fQqPJ5F9VZdWvkuQq5K7upQHeC7UfZX"
-
-# Mở sheet
 try:
     sheet = client.open_by_key(SHEET_ID).sheet1
 except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
 
-# ===================== ỨNG DỤNG STREAMLIT =====================
+# ===================== GIAO DIỆN STREAMLIT =====================
 st.title("🚗 QR Car Management")
 
 menu = ["📋 Xem danh sách", "➕ Đăng ký xe mới"]
