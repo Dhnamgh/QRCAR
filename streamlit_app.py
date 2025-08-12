@@ -1,4 +1,4 @@
-# qrcar_app.py
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,12 @@ scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
+
+# Đọc key từ secrets và xử lý private_key
 creds_dict = st.secrets["google_service_account"]
+if "private_key" in creds_dict:
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
