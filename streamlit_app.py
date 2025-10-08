@@ -195,8 +195,13 @@ elif choice == "Xóa xe":
     bien_so_input = st.text_input("Nhập biển số xe cần xóa")
 
     if bien_so_input:
+        # Chuẩn hóa biển số nhập vào
         bien_so_norm = normalize_plate(bien_so_input)
+
+        # Chuẩn hóa toàn bộ biển số trong danh sách
         df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+
+        # Tìm xe khớp
         ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
         if ket_qua.empty:
@@ -205,16 +210,17 @@ elif choice == "Xóa xe":
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-            try:
-                index = ket_qua.index[0]
-                row = ket_qua.iloc[0]
+            # Lấy chỉ số dòng để xóa
+            index = ket_qua.index[0]
+            row = ket_qua.iloc[0]
 
-                if st.button("Xác nhận xóa"):
+            # Nút xác nhận xóa
+            if st.button("Xác nhận xóa"):
+                try:
                     sheet.delete_rows(index + 2)  # +2 vì dòng header
                     st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
-
-            except Exception as e:
-                st.error(f"⚠️ Lỗi khi xử lý: {e}")
+                except Exception as e:
+                    st.error(f"⚠️ Lỗi khi xóa: {e}")
 
 # ===================== TẠO MÃ QR =====================
 elif choice == "📱 Tạo mã QR":
