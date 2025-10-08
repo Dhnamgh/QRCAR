@@ -271,7 +271,7 @@ elif choice == "🔓 Giải mã QR":
     st.subheader("🔓 Giải mã thông tin xe từ mã QR")
 
     # Lấy biển số từ URL nếu có
-    bien_so_url = st.experimental_get_query_params().get("id", [""])[0]
+    bien_so_url = st.query_params.get("id", [""])[0]
     bien_so_input = st.text_input("📋 Nhập biển số xe", value=bien_so_url)
     mat_khau_input = st.text_input("🔑 Nhập mật khẩu", type="password")
 
@@ -302,6 +302,27 @@ elif choice == "🔓 Giải mã QR":
                 """)
             else:
                 st.error("❌ Sai mật khẩu.")
+# ===================== QUẢN LÝ MẬT KHẨU QR =====================
+elif choice == "🔴🔒 Quản lý mật khẩu QR":
+    st.subheader("🔴🔒 Quản lý mật khẩu QR")
+
+    # Khởi tạo mật khẩu mặc định nếu chưa có
+    if "mat_khau_qr" not in st.session_state:
+        st.session_state["mat_khau_qr"] = "qr@217hb"
+
+    # Hiển thị mật khẩu hiện tại
+    mat_khau_hien_tai = st.session_state["mat_khau_qr"]
+    st.info(f"🔐 Mật khẩu hiện tại đang dùng: `{mat_khau_hien_tai}`")
+
+    # Nhập mật khẩu mới
+    mat_khau_moi = st.text_input("🔄 Nhập mật khẩu mới", type="password")
+
+    if st.button("✅ Cập nhật mật khẩu"):
+        if mat_khau_moi.strip() == "":
+            st.warning("⚠️ Mật khẩu không được để trống.")
+        else:
+            st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
+            st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
 # ===================== XUẤT RA EXCEL =====================
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
