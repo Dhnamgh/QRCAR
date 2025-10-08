@@ -39,7 +39,7 @@ menu = [
     "📱 Tạo mã QR",
     "📤 Xuất ra Excel"
 ]
-choice = st.sidebar.selectbox("Chọn chức năng", menu)
+choice = st.sidebar.radio("📌 Chọn chức năng", menu)
 
 # ===================== LẤY DỮ LIỆU =====================
 try:
