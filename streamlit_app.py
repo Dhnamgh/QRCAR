@@ -224,12 +224,14 @@ elif choice == "🗑️ Xóa xe":
             st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
 # ===================== TẠO MÃ QR =====================
-elif choice == "📷 Tạo mã QR":
-    st.subheader("📷 Tạo mã QR chứa thông tin xe")
+elif choice == "📱 Tạo mã QR":
+    st.subheader("📱 Tạo mã QR chứa thông tin xe")
 
     bien_so_input = st.text_input("Nhập biển số xe để tạo QR")
 
     if bien_so_input:
+        st.write("🔍 Biển số nhập:", bien_so_input)
+
         def normalize_plate(plate):
             import re
             return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
@@ -242,12 +244,13 @@ elif choice == "📷 Tạo mã QR":
             df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
+            st.write("🔍 Kết quả tìm kiếm:", ket_qua)
+
             if ket_qua.empty:
                 st.error("❌ Không tìm thấy xe!")
             else:
                 row = ket_qua.iloc[0]
 
-                # Lấy mật khẩu từ session_state hoặc mặc định
                 mat_khau = st.session_state.get("mat_khau_qr", "qr@217hb")
 
                 qr_data = f"""🔐 Nhập mật khẩu để xem thông tin xe
@@ -272,8 +275,8 @@ Email: {row['Email']}"""
                 buf = io.BytesIO()
                 qr.save(buf)
                 buf.seek(0)
-                st.image(Image.open(buf), caption="📷 Mã QR chứa thông tin xe")
 
+                st.image(Image.open(buf), caption="📱 Mã QR chứa thông tin xe")
                 st.info(f"✅ Quét bằng Zalo sẽ hiển thị nội dung. Người dùng phải biết mật khẩu `{mat_khau}` để đọc thông tin.")
 # ===================== QUẢN LÝ MẬT KHẨU QR =====================
 elif choice == "🔐 Quản lý mật khẩu QR":
