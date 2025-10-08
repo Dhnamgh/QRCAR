@@ -20,7 +20,7 @@ except Exception as e:
     st.stop()
 
 # ===================== MỞ GOOGLE SHEET =====================
-SHEET_ID = "1yz-VLpkf1mBpjsMJN5zwvogzRctIjvaK7dJoO2zvqyc"
+SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
 try:
     sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
 except Exception as e:
