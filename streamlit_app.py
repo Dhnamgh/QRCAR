@@ -128,17 +128,18 @@ elif choice == "➕ Đăng ký xe mới":
     if st.button("Lưu thông tin"):
         ho_ten = format_name(ho_ten)
         bien_so = format_plate(bien_so)
+
         if not ho_ten or not bien_so:
             st.warning("⚠️ Vui lòng nhập ít nhất Họ tên và Biển số xe.")
         elif bien_so in df["Biển số"].apply(format_plate).values:
             st.error("❌ Biển số xe đã tồn tại!")
         else:
-           stt = len(df) + 1
+            stt = len(df) + 1
             sheet.append_row([
                 stt, ho_ten, bien_so, ma_the, ma_don_vi,
                 ten_don_vi, chuc_vu, so_dien_thoai, email
-                ])
-                st.success(f"✅ Đã lưu thông tin xe thành công!\n🔐 Mã thẻ: `{ma_the}`")
+            ])
+            st.success(f"✅ Đã lưu thông tin xe thành công!\n🔐 Mã thẻ: `{ma_the}`")
 
 # ===================== CẬP NHẬT XE =====================
 elif choice == "✏️ Cập nhật xe":
