@@ -60,7 +60,7 @@ menu = [
     "✏️ Cập nhật xe",
     "🗑️ Xóa xe",
     "📱 Tạo mã QR",
-    "📤 Xuất ra Excel"
+    "📤 Xuất ra Excel" ,
     "🔐 Quản lý mật khẩu QR"
 
 ]
