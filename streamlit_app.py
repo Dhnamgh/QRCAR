@@ -236,7 +236,6 @@ elif choice == "📷 Tạo mã QR":
 
         bien_so_norm = normalize_plate(bien_so_input)
 
-        # Kiểm tra dữ liệu
         if df.empty or "Biển số" not in df.columns:
             st.error("⚠️ Dữ liệu chưa sẵn sàng hoặc thiếu cột 'Biển số'.")
         else:
@@ -248,10 +247,9 @@ elif choice == "📷 Tạo mã QR":
             else:
                 row = ket_qua.iloc[0]
 
-                # Mật khẩu từ session_state hoặc mặc định
+                # Lấy mật khẩu từ session_state hoặc mặc định
                 mat_khau = st.session_state.get("mat_khau_qr", "qr@217hb")
 
-                # Tạo nội dung QR
                 qr_data = f"""🔐 Nhập mật khẩu để xem thông tin xe
 
 Mật khẩu: {mat_khau}
