@@ -189,16 +189,28 @@ elif choice == "✏️ Cập nhật xe":
                 st.success("✅ Đã cập nhật thông tin xe thành công!")
 
 # ===================== XÓA XE =====================
-elif choice == "🗑️ Xóa xe":
-    st.subheader("Xóa xe khỏi danh sách")
-    bien_so = st.text_input("Nhập biển số xe cần xóa")
-    if bien_so in df["Biển số"].values:
-        index = df[df["Biển số"] == bien_so].index[0]
-        if st.button("Xác nhận xóa"):
-            sheet.delete_rows(index + 2)
-            st.success("✅ Đã xóa xe khỏi danh sách!")
-    elif bien_so:
-        st.error("❌ Không tìm thấy biển số xe!")
+elif choice == "Xóa xe":
+    st.subheader("🗑️ Xóa xe khỏi danh sách")
+
+    bien_so_input = st.text_input("Nhập biển số xe cần xóa")
+
+    if bien_so_input:
+        bien_so_norm = normalize_plate(bien_so_input)
+        df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+        ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+
+        if ket_qua.empty:
+            st.error("❌ Không tìm thấy biển số xe!")
+        else:
+            st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+            st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
+
+            index = ket_qua.index[0]
+            row = ket_qua.iloc[0]
+
+            if st.button("Xác nhận xóa"):
+                sheet.delete_rows(index + 2)  # +2 vì Google Sheet bắt đầu từ dòng 1, có header
+                st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
 
 # ===================== TẠO MÃ QR =====================
 elif choice == "📱 Tạo mã QR":
