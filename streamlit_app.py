@@ -281,19 +281,31 @@ Email: {row['Email']}"""
 elif choice == "🔐 Quản lý mật khẩu QR":
     st.subheader("🔐 Quản lý mật khẩu QR")
 
-    # Hiển thị mật khẩu hiện tại
-    mat_khau_hien_tai = st.session_state.get("mat_khau_qr", "qr@217hb")
-    st.info(f"Mật khẩu hiện tại: `{mat_khau_hien_tai}`")
+    MA_QUAN_TRI = "admin@qr217"
 
-    # Nhập mật khẩu mới
-    mat_khau_moi = st.text_input("Nhập mật khẩu mới", type="password")
+    # Nhập mã quản trị để truy cập
+    ma_nhap = st.text_input("Nhập mã quản trị để truy cập", type="password")
 
-    if st.button("Cập nhật mật khẩu"):
-        if mat_khau_moi.strip() == "":
-            st.warning("⚠️ Mật khẩu không được để trống.")
-        else:
-            st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
-            st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
+    if ma_nhap != MA_QUAN_TRI:
+        st.warning("🔒 Bạn cần nhập đúng mã quản trị để xem hoặc thay đổi mật khẩu QR.")
+    else:
+        # Khởi tạo mật khẩu mặc định nếu chưa có
+        if "mat_khau_qr" not in st.session_state:
+            st.session_state["mat_khau_qr"] = "qr@217hb"
+
+        # Hiển thị mật khẩu hiện tại
+        mat_khau_hien_tai = st.session_state["mat_khau_qr"]
+        st.info(f"Mật khẩu hiện tại: `{mat_khau_hien_tai}`")
+
+        # Nhập mật khẩu mới
+        mat_khau_moi = st.text_input("Nhập mật khẩu mới", type="password")
+
+        if st.button("Cập nhật mật khẩu"):
+            if mat_khau_moi.strip() == "":
+                st.warning("⚠️ Mật khẩu không được để trống.")
+            else:
+                st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
+                st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
 # ===================== XUẤT RA EXCEL =====================
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
