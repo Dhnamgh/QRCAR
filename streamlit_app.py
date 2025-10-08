@@ -11,6 +11,9 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import qrcode
+import re
+def normalize_plate(plate):
+    return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
 from PIL import Image
 from io import BytesIO
 
@@ -64,27 +67,51 @@ if choice == "📋 Xem danh sách":
 
 # ===================== TÌM KIẾM XE =====================
 elif choice == "🔍 Tìm kiếm xe":
-    st.subheader("Tìm kiếm xe")
-    keyword = st.text_input("Nhập biển số hoặc tên đơn vị")
-    if keyword:
-        filtered = df[df.apply(lambda row: keyword.lower() in str(row).lower(), axis=1)]
-        st.dataframe(filtered)
+    st.subheader("🔍 Tìm kiếm xe theo biển số")
+
+    bien_so_input = st.text_input("Nhập biển số xe cần tìm")
+
+    if bien_so_input:
+        bien_so_norm = normalize_plate(bien_so_input)
+        df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+        ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+
+        if ket_qua.empty:
+            st.warning("🚫 Không tìm thấy xe nào khớp với biển số đã nhập.")
+        else:
+            st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+            st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
 # ===================== ĐĂNG KÝ XE MỚI =====================
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("Đăng ký xe mới")
 
+    # Tạo ánh xạ Tên đơn vị → Mã đơn vị từ file gốc
+    don_vi_map = dict(zip(df["Tên đơn vị"], df["Mã đơn vị"]))
+    ten_don_vi_list = sorted(don_vi_map.keys())
+
     col1, col2 = st.columns(2)
     with col1:
         ho_ten = st.text_input("Họ tên")
         bien_so = st.text_input("Biển số xe")
-        ma_the = st.text_input("Mã thẻ")
-        ma_don_vi = st.text_input("Mã đơn vị")
-        ten_don_vi = st.text_input("Tên đơn vị")
+        ten_don_vi = st.selectbox("Tên đơn vị", ten_don_vi_list)
+        ma_don_vi = don_vi_map.get(ten_don_vi, "")
     with col2:
         chuc_vu = st.text_input("Chức vụ")
         so_dien_thoai = st.text_input("Số điện thoại")
         email = st.text_input("Email")
+
+    # Tìm mã thẻ tiếp theo theo quy tắc: Mã đơn vị + số thứ tự
+    filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
+    if not filtered.empty:
+        numbers = filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int)
+        next_number = max(numbers) + 1
+    else:
+        next_number = 1
+    ma_the = f"{ma_don_vi}{next_number:03d}"
+
+    st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
+    st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
     if st.button("Lưu thông tin"):
         if not ho_ten or not bien_so:
@@ -97,7 +124,7 @@ elif choice == "➕ Đăng ký xe mới":
                 stt, ho_ten, bien_so, ma_the, ma_don_vi,
                 ten_don_vi, chuc_vu, so_dien_thoai, email
             ])
-            st.success("✅ Đã lưu thông tin xe thành công!")
+            st.success(f"✅ Đã lưu thông tin xe thành công!\n🔐 Mã thẻ: `{ma_the}`")
 
 # ===================== CẬP NHẬT XE =====================
 elif choice == "✏️ Cập nhật xe":
