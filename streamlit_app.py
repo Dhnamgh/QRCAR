@@ -142,8 +142,8 @@ elif choice == "➕ Đăng ký xe mới":
             st.success(f"✅ Đã lưu thông tin xe thành công!\n🔐 Mã thẻ: `{ma_the}`")
 
 # ===================== CẬP NHẬT XE =====================
-elif choice == "✏️ Cập nhật thông tin xe":
-    st.subheader("✏️ Cập nhật thông tin xe")
+elif choice == "✏️ Cập nhật xe":
+    st.subheader("✏️ Cập nhật xe")
 
     bien_so_input = st.text_input("Nhập biển số xe cần cập nhật")
 
