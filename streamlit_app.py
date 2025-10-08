@@ -142,26 +142,51 @@ elif choice == "➕ Đăng ký xe mới":
             st.success(f"✅ Đã lưu thông tin xe thành công!\n🔐 Mã thẻ: `{ma_the}`")
 
 # ===================== CẬP NHẬT XE =====================
-elif choice == "✏️ Cập nhật xe":
-    st.subheader("Cập nhật thông tin xe")
-    bien_so = st.text_input("Nhập biển số xe cần cập nhật")
-    if bien_so in df["Biển số"].values:
-        index = df[df["Biển số"] == bien_so].index[0]
-        ho_ten = st.text_input("Họ tên mới", df.at[index, "Họ tên"])
-        ma_the = st.text_input("Mã thẻ mới", df.at[index, "Mã thẻ"])
-        ma_don_vi = st.text_input("Mã đơn vị mới", df.at[index, "Mã đơn vị"])
-        ten_don_vi = st.text_input("Tên đơn vị mới", df.at[index, "Tên đơn vị"])
-        chuc_vu = st.text_input("Chức vụ mới", df.at[index, "Chức vụ"])
-        so_dien_thoai = st.text_input("Số điện thoại mới", df.at[index, "Số điện thoại"])
-        email = st.text_input("Email mới", df.at[index, "Email"])
-        if st.button("Cập nhật"):
-            sheet.update(f"A{index+2}:I{index+2}", [[
-                index + 1, ho_ten, bien_so, ma_the, ma_don_vi,
-                ten_don_vi, chuc_vu, so_dien_thoai, email
-            ]])
-            st.success("✅ Đã cập nhật thông tin xe!")
-    elif bien_so:
-        st.error("❌ Không tìm thấy biển số xe!")
+elif choice == "✏️ Cập nhật thông tin xe":
+    st.subheader("✏️ Cập nhật thông tin xe")
+
+    bien_so_input = st.text_input("Nhập biển số xe cần cập nhật")
+
+    if bien_so_input:
+        bien_so_norm = normalize_plate(bien_so_input)
+        df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+        ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+
+        if ket_qua.empty:
+            st.error("❌ Không tìm thấy biển số xe!")
+        else:
+            st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+            st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
+
+            # Cho phép người dùng sửa thông tin
+            index = ket_qua.index[0]
+            row = ket_qua.iloc[0]
+
+            st.markdown("### 📝 Nhập thông tin mới để cập nhật")
+            col1, col2 = st.columns(2)
+            with col1:
+                ho_ten_moi = st.text_input("Họ tên", value=row["Họ tên"])
+                bien_so_moi = st.text_input("Biển số xe", value=row["Biển số"])
+                ten_don_vi_moi = st.text_input("Tên đơn vị", value=row["Tên đơn vị"])
+                ma_don_vi_moi = st.text_input("Mã đơn vị", value=row["Mã đơn vị"])
+            with col2:
+                chuc_vu_moi = st.text_input("Chức vụ", value=row["Chức vụ"])
+                so_dien_thoai_moi = st.text_input("Số điện thoại", value=row["Số điện thoại"])
+                email_moi = st.text_input("Email", value=row["Email"])
+
+            if st.button("Cập nhật"):
+                sheet.update(f"A{index+2}:I{index+2}", [[
+                    row["STT"],
+                    ho_ten_moi,
+                    bien_so_moi,
+                    row["Mã thẻ"],
+                    ma_don_vi_moi,
+                    ten_don_vi_moi,
+                    chuc_vu_moi,
+                    so_dien_thoai_moi,
+                    email_moi
+                ]])
+                st.success("✅ Đã cập nhật thông tin xe thành công!")
 
 # ===================== XÓA XE =====================
 elif choice == "🗑️ Xóa xe":
