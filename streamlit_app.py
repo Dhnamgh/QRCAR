@@ -227,32 +227,32 @@ elif choice == "🗑️ Xóa xe":
 elif choice == "📱 Tạo mã QR":
     st.subheader("📱 Tạo mã QR chứa thông tin xe")
 
+    # Nhập biển số xe
     bien_so_input = st.text_input("Nhập biển số xe để tạo QR")
 
     if bien_so_input:
-        st.write("🔍 Biển số nhập:", bien_so_input)
-
         def normalize_plate(plate):
             import re
             return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
 
         bien_so_norm = normalize_plate(bien_so_input)
 
+        # Kiểm tra dữ liệu
         if df.empty or "Biển số" not in df.columns:
             st.error("⚠️ Dữ liệu chưa sẵn sàng hoặc thiếu cột 'Biển số'.")
         else:
             df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
-            st.write("🔍 Kết quả tìm kiếm:", ket_qua)
-
             if ket_qua.empty:
                 st.error("❌ Không tìm thấy xe!")
             else:
                 row = ket_qua.iloc[0]
 
+                # Lấy mật khẩu từ session_state hoặc mặc định
                 mat_khau = st.session_state.get("mat_khau_qr", "qr@217hb")
 
+                # Tạo nội dung QR
                 qr_data = f"""🔐 Nhập mật khẩu để xem thông tin xe
 
 Mật khẩu: {mat_khau}
@@ -267,46 +267,27 @@ Chức vụ: {row['Chức vụ']}
 SĐT: {row['Số điện thoại']}
 Email: {row['Email']}"""
 
+                # Tạo mã QR với kích thước gọn
                 import qrcode
-                import io
                 from PIL import Image
+                import io
 
-                qr = qrcode.make(qr_data)
+                qr = qrcode.QRCode(
+                    version=1,
+                    box_size=6,
+                    border=2
+                )
+                qr.add_data(qr_data)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+
+                # Hiển thị mã QR
                 buf = io.BytesIO()
-                qr.save(buf)
+                img.save(buf)
                 buf.seek(0)
+                st.image(Image.open(buf), caption="📱 Mã QR chứa thông tin xe", width=250)
 
-                st.image(Image.open(buf), caption="📱 Mã QR chứa thông tin xe")
                 st.info(f"✅ Quét bằng Zalo sẽ hiển thị nội dung. Người dùng phải biết mật khẩu `{mat_khau}` để đọc thông tin.")
-# ===================== QUẢN LÝ MẬT KHẨU QR =====================
-elif choice == "🔐 Quản lý mật khẩu QR":
-    st.subheader("🔐 Quản lý mật khẩu QR")
-
-    MA_QUAN_TRI = "admin@qr217"
-
-    # Nhập mã quản trị để truy cập
-    ma_nhap = st.text_input("Nhập mã quản trị để truy cập", type="password")
-
-    if ma_nhap != MA_QUAN_TRI:
-        st.warning("🔒 Bạn cần nhập đúng mã quản trị để xem hoặc thay đổi mật khẩu QR.")
-    else:
-        # Khởi tạo mật khẩu mặc định nếu chưa có
-        if "mat_khau_qr" not in st.session_state:
-            st.session_state["mat_khau_qr"] = "qr@217hb"
-
-        # Hiển thị mật khẩu hiện tại
-        mat_khau_hien_tai = st.session_state["mat_khau_qr"]
-        st.info(f"Mật khẩu hiện tại: `{mat_khau_hien_tai}`")
-
-        # Nhập mật khẩu mới
-        mat_khau_moi = st.text_input("Nhập mật khẩu mới", type="password")
-
-        if st.button("Cập nhật mật khẩu"):
-            if mat_khau_moi.strip() == "":
-                st.warning("⚠️ Mật khẩu không được để trống.")
-            else:
-                st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
-                st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
 # ===================== XUẤT RA EXCEL =====================
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
