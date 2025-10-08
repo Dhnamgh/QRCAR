@@ -65,21 +65,30 @@ elif choice == "🔍 Tìm kiếm xe":
 # ===================== ĐĂNG KÝ XE MỚI =====================
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("Đăng ký xe mới")
+
     col1, col2 = st.columns(2)
     with col1:
+        ho_ten = st.text_input("Họ tên")
         bien_so = st.text_input("Biển số xe")
-        mau_son = st.text_input("Màu sơn")
+        ma_the = st.text_input("Mã thẻ")
+        ma_don_vi = st.text_input("Mã đơn vị")
+        ten_don_vi = st.text_input("Tên đơn vị")
     with col2:
-        chu_so_huu = st.text_input("Chủ sở hữu")
-        don_vi = st.text_input("Tên đơn vị")
+        chuc_vu = st.text_input("Chức vụ")
+        so_dien_thoai = st.text_input("Số điện thoại")
+        email = st.text_input("Email")
 
     if st.button("Lưu thông tin"):
-        if not bien_so or not mau_son or not chu_so_huu or not don_vi:
-            st.warning("⚠️ Vui lòng điền đầy đủ thông tin.")
+        if not ho_ten or not bien_so:
+            st.warning("⚠️ Vui lòng nhập ít nhất Họ tên và Biển số xe.")
         elif bien_so in df["Biển số"].values:
             st.error("❌ Biển số xe đã tồn tại!")
         else:
-            sheet.append_row([bien_so, mau_son, chu_so_huu, don_vi])
+            stt = len(df) + 1
+            sheet.append_row([
+                stt, ho_ten, bien_so, ma_the, ma_don_vi,
+                ten_don_vi, chuc_vu, so_dien_thoai, email
+            ])
             st.success("✅ Đã lưu thông tin xe thành công!")
 
 # ===================== CẬP NHẬT XE =====================
@@ -88,11 +97,18 @@ elif choice == "✏️ Cập nhật xe":
     bien_so = st.text_input("Nhập biển số xe cần cập nhật")
     if bien_so in df["Biển số"].values:
         index = df[df["Biển số"] == bien_so].index[0]
-        mau_son = st.text_input("Màu sơn mới", df.at[index, "Màu sơn"])
-        chu_so_huu = st.text_input("Chủ sở hữu mới", df.at[index, "Chủ sở hữu"])
-        don_vi = st.text_input("Tên đơn vị mới", df.at[index, "Tên đơn vị"])
+        ho_ten = st.text_input("Họ tên mới", df.at[index, "Họ tên"])
+        ma_the = st.text_input("Mã thẻ mới", df.at[index, "Mã thẻ"])
+        ma_don_vi = st.text_input("Mã đơn vị mới", df.at[index, "Mã đơn vị"])
+        ten_don_vi = st.text_input("Tên đơn vị mới", df.at[index, "Tên đơn vị"])
+        chuc_vu = st.text_input("Chức vụ mới", df.at[index, "Chức vụ"])
+        so_dien_thoai = st.text_input("Số điện thoại mới", df.at[index, "Số điện thoại"])
+        email = st.text_input("Email mới", df.at[index, "Email"])
         if st.button("Cập nhật"):
-            sheet.update(f"A{index+2}:D{index+2}", [[bien_so, mau_son, chu_so_huu, don_vi]])
+            sheet.update(f"A{index+2}:I{index+2}", [[
+                index + 1, ho_ten, bien_so, ma_the, ma_don_vi,
+                ten_don_vi, chuc_vu, so_dien_thoai, email
+            ]])
             st.success("✅ Đã cập nhật thông tin xe!")
     elif bien_so:
         st.error("❌ Không tìm thấy biển số xe!")
