@@ -22,7 +22,7 @@ except Exception as e:
 # ===================== MỞ GOOGLE SHEET =====================
 SHEET_ID = "18fQqPJ5F9VZdWvkuQq5K7upQHeC7UfZX"
 try:
-    sheet = client.open_by_key(SHEET_ID).sheet1
+    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
 except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
