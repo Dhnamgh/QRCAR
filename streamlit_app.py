@@ -42,16 +42,12 @@ except Exception as e:
     st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
     st.stop()
 
-# ===================== ĐỌC GOOGLE SHEET KHÔNG CẦN ĐĂNG NHẬP =====================
-import pandas as pd
-
+# ===================== MỞ GOOGLE SHEET =====================
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
-csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
-
 try:
-    df = pd.read_csv(csv_url)
+    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
 except Exception as e:
-    st.error(f"❌ Lỗi đọc Google Sheet: {e}")
+    st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
 # ===================== GIAO DIỆN STREAMLIT =====================
 st.title("🚗 QR Car Management")
