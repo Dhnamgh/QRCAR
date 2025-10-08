@@ -61,7 +61,8 @@ menu = [
     "🗑️ Xóa xe",
     "📱 Tạo mã QR",
     "📤 Xuất ra Excel" ,
-    "🔐 Quản lý mật khẩu QR"
+    "🔐 Quản lý mật khẩu QR",
+    "🔓 Giải mã QR"
 
 ]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu)
@@ -225,9 +226,8 @@ elif choice == "🗑️ Xóa xe":
 
 # ===================== TẠO MÃ QR =====================
 elif choice == "📱 Tạo mã QR":
-    st.subheader("📱 Tạo mã QR chứa thông tin xe")
+    st.subheader("📱 Tạo mã QR chứa link đến thông tin xe")
 
-    # Nhập biển số xe
     bien_so_input = st.text_input("Nhập biển số xe để tạo QR")
 
     if bien_so_input:
@@ -237,7 +237,6 @@ elif choice == "📱 Tạo mã QR":
 
         bien_so_norm = normalize_plate(bien_so_input)
 
-        # Kiểm tra dữ liệu
         if df.empty or "Biển số" not in df.columns:
             st.error("⚠️ Dữ liệu chưa sẵn sàng hoặc thiếu cột 'Biển số'.")
         else:
@@ -249,45 +248,60 @@ elif choice == "📱 Tạo mã QR":
             else:
                 row = ket_qua.iloc[0]
 
-                # Lấy mật khẩu từ session_state hoặc mặc định
-                mat_khau = st.session_state.get("mat_khau_qr", "qr@217hb")
+                # Tạo link dẫn đến tab giải mã QR, kèm biển số
+                link = f"https://duy-qr.streamlit.app/?id={row['Biển số']}"
 
-                # Tạo nội dung QR
-                qr_data = f"""🔐 Nhập mật khẩu để xem thông tin xe
-
-Mật khẩu: {mat_khau}
-
-Nếu đúng, thông tin xe:
-
-Biển số: {row['Biển số']}
-Họ tên: {row['Họ tên']}
-Mã thẻ: {row['Mã thẻ']}
-Đơn vị: {row['Tên đơn vị']}
-Chức vụ: {row['Chức vụ']}
-SĐT: {row['Số điện thoại']}
-Email: {row['Email']}"""
-
-                # Tạo mã QR với kích thước gọn
                 import qrcode
                 from PIL import Image
                 import io
 
-                qr = qrcode.QRCode(
-                    version=1,
-                    box_size=6,
-                    border=2
-                )
-                qr.add_data(qr_data)
+                qr = qrcode.QRCode(version=1, box_size=6, border=2)
+                qr.add_data(link)
                 qr.make(fit=True)
                 img = qr.make_image(fill_color="black", back_color="white")
 
-                # Hiển thị mã QR
                 buf = io.BytesIO()
                 img.save(buf)
                 buf.seek(0)
-                st.image(Image.open(buf), caption="📱 Mã QR chứa thông tin xe", width=250)
 
-                st.info(f"✅ Quét bằng Zalo sẽ hiển thị nội dung. Người dùng phải biết mật khẩu `{mat_khau}` để đọc thông tin.")
+                st.image(Image.open(buf), caption="📱 Mã QR dẫn đến thông tin xe", width=250)
+                st.info("✅ Quét bằng Zalo sẽ mở trang nhập mật khẩu để xem thông tin xe.")
+# ===================== GIẢI MÃ QR =====================
+elif choice == "🔓 Giải mã QR":
+    st.subheader("🔓 Giải mã thông tin xe từ mã QR")
+
+    # Lấy biển số từ URL nếu có
+    bien_so_url = st.experimental_get_query_params().get("id", [""])[0]
+    bien_so_input = st.text_input("📋 Nhập biển số xe", value=bien_so_url)
+    mat_khau_input = st.text_input("🔑 Nhập mật khẩu", type="password")
+
+    if bien_so_input and mat_khau_input:
+        def normalize_plate(plate):
+            import re
+            return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
+
+        bien_so_norm = normalize_plate(bien_so_input)
+        df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+        ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+
+        if ket_qua.empty:
+            st.error("❌ Không tìm thấy xe!")
+        else:
+            mat_khau_dung = st.session_state.get("mat_khau_qr", "qr@217hb")
+            if mat_khau_input == mat_khau_dung:
+                row = ket_qua.iloc[0]
+                st.success("✅ Mật khẩu đúng. Thông tin xe:")
+                st.write(f"""
+                - Biển số: {row['Biển số']}
+                - Họ tên: {row['Họ tên']}
+                - Mã thẻ: {row['Mã thẻ']}
+                - Đơn vị: {row['Tên đơn vị']}
+                - Chức vụ: {row['Chức vụ']}
+                - SĐT: {row['Số điện thoại']}
+                - Email: {row['Email']}
+                """)
+            else:
+                st.error("❌ Sai mật khẩu.")
 # ===================== XUẤT RA EXCEL =====================
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
