@@ -205,12 +205,16 @@ elif choice == "Xóa xe":
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-            index = ket_qua.index[0]
-            row = ket_qua.iloc[0]
+            try:
+                index = ket_qua.index[0]
+                row = ket_qua.iloc[0]
 
-            if st.button("Xác nhận xóa"):
-                sheet.delete_rows(index + 2)  # +2 vì Google Sheet bắt đầu từ dòng 1, có header
-                st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
+                if st.button("Xác nhận xóa"):
+                    sheet.delete_rows(index + 2)  # +2 vì dòng header
+                    st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
+
+            except Exception as e:
+                st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
 # ===================== TẠO MÃ QR =====================
 elif choice == "📱 Tạo mã QR":
