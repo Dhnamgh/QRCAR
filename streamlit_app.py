@@ -189,7 +189,7 @@ elif choice == "✏️ Cập nhật xe":
                 st.success("✅ Đã cập nhật thông tin xe thành công!")
 
 # ===================== XÓA XE =====================
-elif choice == " 🗑️ Xóa xe":
+elif choice == "🗑️ Xóa xe":
     st.subheader("🗑️ Xóa xe khỏi danh sách")
 
     bien_so_input = st.text_input("Nhập biển số xe cần xóa")
