@@ -180,7 +180,8 @@ elif choice == "🗑️ Xóa xe":
         try:
             bien_so_norm = normalize_plate(bien_so_input)
             df["Biển số chuẩn hóa"] = df
-            df.loc[:, "Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
+            df = df.copy()
+            df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
             if ket_qua.empty:
