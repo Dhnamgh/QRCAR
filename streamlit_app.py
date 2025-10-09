@@ -93,7 +93,7 @@ menu = [
     "🗑️ Xóa xe",
     "📱 Mã QR xe",
     "📤 Xuất ra Excel",
-    "🔐 Quản lý mật khẩu",
+    
 ]
 
 default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
@@ -285,26 +285,6 @@ elif choice == "📱 Mã QR xe":
 
             except Exception as e:
                 st.error(f"⚠️ Lỗi khi xử lý: {e}")
-
-elif choice == "🔐 Quản lý mật khẩu":
-    st.subheader("🔐 Quản lý mật khẩu")
-
-    if "mat_khau_qr" not in st.session_state:
-        st.session_state["mat_khau_qr"] = "qr@217hb"
-
-    mat_khau_hien_tai = st.session_state.get("mat_khau_qr", "qr@217hb")
-    st.info(f"🔐 Mật khẩu hiện tại đang dùng: `{mat_khau_hien_tai}`")
-
-    mat_khau_moi = st.text_input("🔄 Nhập mật khẩu mới", type="password")
-
-    if st.button("✅ Cập nhật mật khẩu"):
-        if not mat_khau_moi or mat_khau_moi.strip() == "":
-            st.warning("⚠️ Mật khẩu không được để trống.")
-        else:
-            st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
-            st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
-    st.stop()
-
 
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
