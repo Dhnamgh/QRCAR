@@ -83,6 +83,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.image("logo.png", width=120)  # 👈 Logo nằm trên cùng
 st.title("🚗 QR Car Management")
 
 menu = [
@@ -93,7 +94,6 @@ menu = [
     "🗑️ Xóa xe",
     "📱 Mã QR xe",
     "📤 Xuất ra Excel",
-    
 ]
 
 default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
