@@ -248,7 +248,7 @@ elif choice == "🔓 Giải mã QR":
 
     if bien_so_input and mat_khau_input:
         bien_so_norm = normalize_plate(bien_so_input)
-        df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+        df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
         ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
         if ket_qua.empty:
