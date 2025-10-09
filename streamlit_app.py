@@ -5,13 +5,16 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import qrcode
 import re
+def normalize_plate(plate):
+    # Chuẩn hóa biển số: xóa khoảng trắng, dấu gạch, chữ thường
+    return plate.strip().lower().replace("-", "").replace(".", "").replace(" ", "")
 from PIL import Image
 from io import BytesIO
-# Kiểm tra nếu đang ở chế độ quét QR
+# ✅ Kiểm tra nếu đang ở chế độ quét QR
 query_id = st.query_params.get("id", "")
 
 if query_id:
-    # Ẩn sidebar hoàn toàn
+    # ✅ Ẩn sidebar hoàn toàn
     st.markdown("""
         <style>
             [data-testid="stSidebar"] {display: none;}
@@ -20,14 +23,13 @@ if query_id:
         </style>
     """, unsafe_allow_html=True)
 
-    # Giao diện tra cứu QR
     st.title("🚗 QR Car Lookup")
     st.info(f"🔍 Đang tra cứu xe có biển số: {query_id}")
 
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
     if mat_khau:
-        if mat_khau.strip() != "qr@217hb":  # 👉 thay bằng mật khẩu thật của bạn
+        if mat_khau.strip() != "qr@217hb":  # ✅ mật khẩu bạn đã đặt
             st.error("❌ Sai mật khẩu!")
         else:
             df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
@@ -39,7 +41,7 @@ if query_id:
                 st.success("✅ Thông tin xe:")
                 st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-    st.stop()  # 👉 Dừng app tại đây, không cho chạy các phần khác
+    st.stop()  # ✅ Dừng app tại đây, không cho chạy các phần khác
 # ========== GIAO DIỆN ==========
 st.markdown("""
     <style>
