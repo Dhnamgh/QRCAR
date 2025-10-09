@@ -7,7 +7,39 @@ import qrcode
 import re
 from PIL import Image
 from io import BytesIO
+# Kiểm tra nếu đang ở chế độ quét QR
+query_id = st.query_params.get("id", "")
 
+if query_id:
+    # Ẩn sidebar hoàn toàn
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {display: none;}
+            [data-testid="stSidebarNav"] {display: none;}
+            [data-testid="stSidebarContent"] {display: none;}
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Giao diện tra cứu QR
+    st.title("🚗 QR Car Lookup")
+    st.info(f"🔍 Đang tra cứu xe có biển số: {query_id}")
+
+    mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
+
+    if mat_khau:
+        if mat_khau.strip() != "matkhaucuaban":  # 👉 thay bằng mật khẩu thật của bạn
+            st.error("❌ Sai mật khẩu!")
+        else:
+            df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
+            ket_qua = df[df["Biển số chuẩn hóa"] == query_id]
+
+            if ket_qua.empty:
+                st.error(f"❌ Không tìm thấy xe có biển số: {query_id}")
+            else:
+                st.success("✅ Thông tin xe:")
+                st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
+
+    st.stop()  # 👉 Dừng app tại đây, không cho chạy các phần khác
 # ========== GIAO DIỆN ==========
 st.markdown("""
     <style>
