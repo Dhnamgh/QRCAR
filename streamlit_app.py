@@ -201,44 +201,49 @@ elif choice == "🗑️ Xóa xe":
             st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
 elif choice == "📱 Tạo mã QR":
-    st.subheader("📱 Tạo mã QR chứa link đến thông tin xe")
+    st.subheader("📱 Tạo mã QR cho xe")
 
-    bien_so_input = st.text_input("Nhập biển số xe để tạo QR")
-
+    # Chọn xe cần tạo mã
+    bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
     if bien_so_input:
-        bien_so_norm = normalize_plate(bien_so_input)
+        try:
+            bien_so_norm = normalize_plate(bien_so_input)
 
-        if df.empty or "Biển số" not in df.columns:
-            st.error("⚠️ Dữ liệu chưa sẵn sàng hoặc thiếu cột 'Biển số'.")
-        else:
-            df["Biển số chuẩn hóa"] = df["Biển số"].apply(normalize_plate)
+            df = df.copy()
+            df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
             if ket_qua.empty:
-                st.error("❌ Không tìm thấy xe!")
+                st.error("❌ Không tìm thấy xe có biển số này!")
             else:
                 row = ket_qua.iloc[0]
+
+                # Tạo link QR dùng biển số đã chuẩn hóa
                 import urllib.parse
-                link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(row['Biển số'])}"
-                qr = qrcode.QRCode(version=1, box_size=6, border=2)
-                qr.add_data(link)
-                qr.make(fit=True)
-                img = qr.make_image(fill_color="black", back_color="white")
+                link = f"https://qrcarump.streamlit.app/?id={normalize_plate(row['Biển số'])}"
 
-                buf = BytesIO()
+                # Tạo mã QR
+                import qrcode
+                import io
+                img = qrcode.make(link)
+                buf = io.BytesIO()
                 img.save(buf)
-                buf.seek(0)
+                st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", use_column_width=True)
 
-                st.image(Image.open(buf), caption="📱 Mã QR dẫn đến thông tin xe", width=250)
-
+                # Cho phép tải về
                 st.download_button(
-                    label="⬇️ Tải mã QR về",
-                    data=buf,
-                    file_name=f"qr_{row['Biển số']}.png",
+                    label="📥 Tải mã QR",
+                    data=buf.getvalue(),
+                    file_name=f"QR_{row['Biển số']}.png",
                     mime="image/png"
                 )
 
-                st.info("✅ Quét bằng Zalo sẽ mở trang nhập mật khẩu để xem thông tin xe.")
+                # Hiển thị thông tin xe
+                st.success("✅ Thông tin xe:")
+                st.dataframe(row.to_frame().T, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
 elif choice == "🔓 Giải mã QR":
     st.subheader("🔓 Giải mã thông tin xe từ mã QR")
