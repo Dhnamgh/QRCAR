@@ -26,10 +26,10 @@ menu = [
     "➕ Đăng ký xe mới",
     "✏️ Cập nhật xe",
     "🗑️ Xóa xe",
-    "📱 Tạo mã QR",
+    "📱 Mã QR xe",
     "📤 Xuất ra Excel",
     "🔐 Quản lý mật khẩu QR",
-    "🔓 Giải mã QR"
+    
 ]
 default_tab = "🔓 Giải mã QR" if "id" in st.query_params else menu[0]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=menu.index(default_tab))
@@ -200,90 +200,83 @@ elif choice == "🗑️ Xóa xe":
         except Exception as e:
             st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
-elif choice == "📱 Tạo mã QR":
-    st.subheader("📱 Tạo mã QR cho xe")
+elif choice == "📱 Mã QR xe":
+    st.subheader("📱 Mã QR xe")
 
-    # Nhập biển số xe cần tạo mã
-    bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
-    if bien_so_input:
-        try:
-            # Chuẩn hóa biển số nhập vào
-            bien_so_norm = normalize_plate(bien_so_input)
+    # Kiểm tra nếu có biển số từ URL (quét QR)
+    bien_so_url = st.query_params.get("id", [""])[0]
 
-            # Chuẩn hóa dữ liệu bảng
-            df = df.copy()
-            df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
+    if bien_so_url:
+        st.info(f"🔍 Đang tra cứu xe có biển số: {bien_so_url}")
 
-            # Kiểm tra biển số có tồn tại không
-            ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+        # Nhập mật khẩu để xem thông tin
+        mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
-            if ket_qua.empty:
-                st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_input}")
-                st.write("🔍 Biển số chuẩn hóa cần tìm:", bien_so_norm)
-                st.write("📋 Danh sách biển số chuẩn hóa trong bảng:", df["Biển số chuẩn hóa"].tolist())
+        if mat_khau:
+            if mat_khau != "123":  # Thay bằng mật khẩu thật nếu cần
+                st.error("❌ Sai mật khẩu!")
             else:
-                row = ket_qua.iloc[0]
+                # Chuẩn hóa biển số từ URL
+                bien_so_norm = bien_so_url
 
-                # Tạo link QR dùng biển số đã chuẩn hóa
-                import urllib.parse
-                link = f"https://qrcarump.streamlit.app/?id={normalize_plate(row['Biển số'])}"
+                # Chuẩn hóa dữ liệu bảng
+                df = df.copy()
+                df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
 
-                # Tạo mã QR
-                import qrcode
-                import io
-                img = qrcode.make(link)
-                buf = io.BytesIO()
-                img.save(buf)
+                # Tra cứu
+                ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
-                # Hiển thị mã QR với kích thước vừa phải
-                st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", width=200)
+                if ket_qua.empty:
+                    st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_url}")
+                else:
+                    st.success("✅ Thông tin xe:")
+                    st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-                # Cho phép tải về
-                st.download_button(
-                    label="📥 Tải mã QR",
-                    data=buf.getvalue(),
-                    file_name=f"QR_{row['Biển số']}.png",
-                    mime="image/png"
-                )
+    else:
+        # Không có QR → cho phép nhập tay để tạo mã
+        bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
+        if bien_so_input:
+            try:
+                # Chuẩn hóa biển số nhập vào
+                bien_so_norm = normalize_plate(bien_so_input)
 
-                # Hiển thị thông tin xe
-                st.success("✅ Thông tin xe:")
-                st.dataframe(row.to_frame().T, use_container_width=True)
+                # Chuẩn hóa dữ liệu bảng
+                df = df.copy()
+                df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
 
-        except Exception as e:
-            st.error(f"⚠️ Lỗi khi xử lý: {e}")
+                # Tìm xe khớp
+                ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
-elif choice == "🔓 Giải mã QR":
-    st.subheader("🔓 Giải mã thông tin xe từ mã QR")
+                if ket_qua.empty:
+                    st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_input}")
+                else:
+                    row = ket_qua.iloc[0]
 
-    bien_so_url = st.query_params["id"][0] if "id" in st.query_params else ""
-    bien_so_input = bien_so_url if bien_so_url else st.text_input("📋 Nhập biển số xe")
-    mat_khau_input = st.text_input("🔑 Nhập mật khẩu", type="password")
+                    # Tạo link QR dùng biển số chuẩn hóa
+                    import qrcode
+                    import io
+                    link = f"https://qrcarump.streamlit.app/?id={bien_so_norm}"
+                    img = qrcode.make(link)
+                    buf = io.BytesIO()
+                    img.save(buf)
 
-    if bien_so_input and mat_khau_input:
-        bien_so_norm = normalize_plate(bien_so_input)
-        df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
-        ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
+                    # Hiển thị mã QR
+                    st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", width=200)
 
-        if ket_qua.empty:
-            st.error("❌ Không tìm thấy xe!")
-        else:
-            mat_khau_dung = st.session_state.get("mat_khau_qr", "qr@217hb")
-            if mat_khau_input == mat_khau_dung:
-                row = ket_qua.iloc[0]
-                st.success("✅ Mật khẩu đúng. Thông tin xe:")
-                st.write(f"""
-                - Biển số: {row['Biển số']}
-                - Họ tên: {row['Họ tên']}
-                - Mã thẻ: {row['Mã thẻ']}
-                - Đơn vị: {row['Tên đơn vị']}
-                - Chức vụ: {row['Chức vụ']}
-                - SĐT: {row['Số điện thoại']}
-                - Email: {row['Email']}
-                """)
-            else:
-                st.error("❌ Sai mật khẩu.")
+                    # Cho phép tải về
+                    st.download_button(
+                        label="📥 Tải mã QR",
+                        data=buf.getvalue(),
+                        file_name=f"QR_{row['Biển số']}.png",
+                        mime="image/png"
+                    )
 
+                    # Hiển thị thông tin xe
+                    st.success("✅ Thông tin xe:")
+                    st.dataframe(row.to_frame().T, use_container_width=True)
+
+            except Exception as e:
+                st.error(f"⚠️ Lỗi khi xử lý: {e}")
 elif choice == "🔐 Quản lý mật khẩu QR":
     st.subheader("🔐 Quản lý mật khẩu QR")
 
