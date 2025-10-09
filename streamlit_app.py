@@ -203,14 +203,18 @@ elif choice == "🗑️ Xóa xe":
 elif choice == "📱 Tạo mã QR":
     st.subheader("📱 Tạo mã QR cho xe")
 
-    # Chọn xe cần tạo mã
+    # Nhập biển số xe cần tạo mã
     bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
     if bien_so_input:
         try:
+            # Chuẩn hóa biển số nhập vào
             bien_so_norm = normalize_plate(bien_so_input)
 
+            # Chuẩn hóa toàn bộ bảng để tra cứu
             df = df.copy()
             df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
+
+            # Tìm xe khớp
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
             if ket_qua.empty:
@@ -228,7 +232,9 @@ elif choice == "📱 Tạo mã QR":
                 img = qrcode.make(link)
                 buf = io.BytesIO()
                 img.save(buf)
-                st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", use_column_width=True)
+
+                # Hiển thị mã QR với kích thước vừa phải
+                st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", width=200)
 
                 # Cho phép tải về
                 st.download_button(
