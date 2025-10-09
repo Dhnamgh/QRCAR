@@ -276,7 +276,7 @@ elif choice == "🔓 Giải mã QR":
     st.subheader("🔓 Giải mã thông tin xe từ mã QR")
 
     # Lấy biển số từ URL nếu có
-    bien_so_url = st.query_params.get("id", [""])[0]
+    bien_so_url = st.query_params["id"][0] if "id" in st.query_params else ""
     bien_so_input = st.text_input("📋 Nhập biển số xe", value=bien_so_url)
     mat_khau_input = st.text_input("🔑 Nhập mật khẩu", type="password")
 
