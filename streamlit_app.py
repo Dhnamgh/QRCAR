@@ -28,10 +28,10 @@ menu = [
     "🗑️ Xóa xe",
     "📱 Mã QR xe",
     "📤 Xuất ra Excel",
-    "🔐 Quản lý mật khẩu QR",
+    "🔐 Quản lý mật khẩu",
     
 ]
-default_tab = "🔓 Giải mã QR" if "id" in st.query_params else menu[0]
+default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=menu.index(default_tab))
 
 # ========== HÀM TIỆN ÍCH ==========
@@ -277,8 +277,8 @@ elif choice == "📱 Mã QR xe":
 
             except Exception as e:
                 st.error(f"⚠️ Lỗi khi xử lý: {e}")
-elif choice == "🔐 Quản lý mật khẩu QR":
-    st.subheader("🔐 Quản lý mật khẩu QR")
+elif choice == "🔐 Quản lý mật khẩu":
+    st.subheader("🔐 Quản lý mật khẩu")
 
     if "mat_khau_qr" not in st.session_state:
         st.session_state["mat_khau_qr"] = "qr@217hb"
