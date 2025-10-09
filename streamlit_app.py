@@ -248,7 +248,7 @@ elif choice == "📱 Tạo mã QR":
                 row = ket_qua.iloc[0]
 
                 # Tạo link dẫn đến tab giải mã QR, kèm biển số
-                link = f"https://duy-qr.streamlit.app/?id={row['Biển số']}"
+                link = f"https://qrcarump.streamlit.app?id={row['Biển số']}"
 
                 import qrcode
                 from PIL import Image
