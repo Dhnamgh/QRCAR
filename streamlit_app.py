@@ -96,6 +96,16 @@ menu = [
     "📤 Xuất ra Excel",
 ]
 
+menu = [
+    "📋 Xem danh sách",
+    "🔍 Tìm kiếm xe",
+    "➕ Đăng ký xe mới",
+    "✏️ Cập nhật xe",
+    "🗑️ Xóa xe",
+    "📱 Mã QR xe",
+    "📤 Xuất ra Excel",
+]
+
 default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=menu.index(default_tab))
 
