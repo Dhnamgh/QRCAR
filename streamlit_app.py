@@ -31,7 +31,8 @@ menu = [
     "🔐 Quản lý mật khẩu QR",
     "🔓 Giải mã QR"
 ]
-choice = st.sidebar.radio("📌 Chọn chức năng", menu)
+default_tab = "🔓 Giải mã QR" if "id" in st.query_params else menu[0]
+choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=menu.index(default_tab))
 
 # ========== HÀM TIỆN ÍCH ==========
 def format_name(name):
