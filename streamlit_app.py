@@ -213,7 +213,7 @@ elif choice == "📱 Mã QR xe":
         mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
         if mat_khau:
-            if mat_khau != "123":  # Thay bằng mật khẩu thật nếu cần
+            if mat_khau != "qr@217hb":  # Thay bằng mật khẩu thật nếu cần
                 st.error("❌ Sai mật khẩu!")
             else:
                 # Chuẩn hóa biển số từ URL
