@@ -271,7 +271,7 @@ elif choice == "📱 Tạo mã QR":
 
                 st.image(Image.open(buf), caption="📱 Mã QR dẫn đến thông tin xe", width=250)
 
-                # Nút tải về
+                # ✅ Nút tải mã QR về
                 st.download_button(
                     label="⬇️ Tải mã QR về",
                     data=buf,
