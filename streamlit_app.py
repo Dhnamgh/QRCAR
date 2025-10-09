@@ -218,8 +218,8 @@ elif choice == "📱 Tạo mã QR":
                 st.error("❌ Không tìm thấy xe!")
             else:
                 row = ket_qua.iloc[0]
-                link = f"https://your-app-name.streamlit.app/?id={urllib.parse.quote(row['Biển số'])}"
-
+                import urllib.parse
+                link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(row['Biển số'])}"
                 qr = qrcode.QRCode(version=1, box_size=6, border=2)
                 qr.add_data(link)
                 qr.make(fit=True)
