@@ -200,8 +200,8 @@ elif choice == "✏️ Cập nhật xe":
                     chuc_vu_moi,
                     so_dien_thoai_moi,
                     email_moi
-                    ]])
-                    st.success("✅ Đã cập nhật thông tin xe thành công!")
+                ]])
+                st.success("✅ Đã cập nhật thông tin xe thành công!")
 
 elif choice == "🗑️ Xóa xe":
     st.subheader("🗑️ Xóa xe khỏi danh sách")
