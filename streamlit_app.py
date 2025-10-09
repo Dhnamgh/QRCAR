@@ -38,7 +38,7 @@ if query_id:
         client = gspread.authorize(creds)
 
         # ✅ Mở sheet theo ID và worksheet
-        sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Danh sách xe")
+        sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Sheet1")
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
 
