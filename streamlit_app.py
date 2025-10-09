@@ -210,15 +210,17 @@ elif choice == "📱 Tạo mã QR":
             # Chuẩn hóa biển số nhập vào
             bien_so_norm = normalize_plate(bien_so_input)
 
-            # Chuẩn hóa toàn bộ bảng để tra cứu
+            # Chuẩn hóa dữ liệu bảng
             df = df.copy()
             df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
 
-            # Tìm xe khớp
+            # Kiểm tra biển số có tồn tại không
             ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
             if ket_qua.empty:
-                st.error("❌ Không tìm thấy xe có biển số này!")
+                st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_input}")
+                st.write("🔍 Biển số chuẩn hóa cần tìm:", bien_so_norm)
+                st.write("📋 Danh sách biển số chuẩn hóa trong bảng:", df["Biển số chuẩn hóa"].tolist())
             else:
                 row = ket_qua.iloc[0]
 
