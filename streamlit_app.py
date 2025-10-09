@@ -27,7 +27,7 @@ if query_id:
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
     if mat_khau:
-        if mat_khau.strip() != "matkhaucuaban":  # 👉 thay bằng mật khẩu thật của bạn
+        if mat_khau.strip() != "qr@217hb":  # 👉 thay bằng mật khẩu thật của bạn
             st.error("❌ Sai mật khẩu!")
         else:
             df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
