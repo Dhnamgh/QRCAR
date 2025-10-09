@@ -5,11 +5,13 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import qrcode
 import re
-def normalize_plate(plate):
-    # Chuẩn hóa biển số: xóa khoảng trắng, dấu gạch, chữ thường
-    return plate.strip().lower().replace("-", "").replace(".", "").replace(" ", "")
 from PIL import Image
 from io import BytesIO
+
+# ✅ Hàm chuẩn hóa biển số
+def normalize_plate(plate):
+    return plate.strip().lower().replace("-", "").replace(".", "").replace(" ", "")
+
 # ✅ Kiểm tra nếu đang ở chế độ quét QR
 query_id = st.query_params.get("id", "")
 
@@ -26,14 +28,34 @@ if query_id:
     st.title("🚗 QR Car Lookup")
     st.info(f"🔍 Đang tra cứu xe có biển số: {query_id}")
 
+    # ✅ Nhập mật khẩu
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
+    # ✅ Tải dữ liệu xe từ Google Sheets hoặc nguồn khác
+    try:
+        import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+# ✅ Kết nối Google Sheets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+client = gspread.authorize(creds)
+
+# ✅ Mở sheet theo ID
+sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Danh sách xe")  # 👉 thay bằng tên worksheet thật nếu khác
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
+    except Exception as e:
+        st.error("❌ Không thể tải dữ liệu xe.")
+        st.stop()
+
+    # ✅ Kiểm tra mật khẩu
     if mat_khau:
-        if mat_khau.strip() != "qr@217hb":  # ✅ mật khẩu bạn đã đặt
+        if mat_khau.strip() != "qr@217hb":
             st.error("❌ Sai mật khẩu!")
         else:
             df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
-            ket_qua = df[df["Biển số chuẩn hóa"] == query_id]
+            ket_qua = df[df["Biển số chuẩn hóa"] == normalize_plate(query_id)]
 
             if ket_qua.empty:
                 st.error(f"❌ Không tìm thấy xe có biển số: {query_id}")
