@@ -7,6 +7,12 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+import streamlit as st
+import pandas as pd
+import urllib.parse
+# 🔍 Lấy biển số từ URL nếu có
+query_params = st.experimental_get_query_params()
+bien_so_qr = query_params.get("id", [None])[0]
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -248,7 +254,7 @@ elif choice == "📱 Tạo mã QR":
                 row = ket_qua.iloc[0]
 
                 # Tạo link dẫn đến tab giải mã QR, kèm biển số
-                link = f"https://qrcarump.streamlit.app?id={row['Biển số']}"
+                link = f"https://qrcarump.streamlit.app/?id={row['Biển số']}"
 
                 import qrcode
                 from PIL import Image
@@ -264,6 +270,15 @@ elif choice == "📱 Tạo mã QR":
                 buf.seek(0)
 
                 st.image(Image.open(buf), caption="📱 Mã QR dẫn đến thông tin xe", width=250)
+
+                # Nút tải về
+                st.download_button(
+                    label="⬇️ Tải mã QR về",
+                    data=buf,
+                    file_name=f"qr_{row['Biển số']}.png",
+                    mime="image/png"
+                )
+
                 st.info("✅ Quét bằng Zalo sẽ mở trang nhập mật khẩu để xem thông tin xe.")
 # ===================== GIẢI MÃ QR =====================
 elif choice == "🔓 Giải mã QR":
