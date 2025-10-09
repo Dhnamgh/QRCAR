@@ -8,15 +8,37 @@ import re
 from PIL import Image
 from io import BytesIO
 
-# ✅ Hàm chuẩn hóa biển số
 def normalize_plate(plate):
-    return plate.strip().lower().replace("-", "").replace(".", "").replace(" ", "")
+    return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
 
-# ✅ Kiểm tra nếu đang ở chế độ quét QR
+def format_name(name):
+    return ' '.join(word.capitalize() for word in name.strip().split())
+
+def format_plate(plate):
+    plate = re.sub(r'[^a-zA-Z0-9]', '', plate).upper()
+    if len(plate) >= 8:
+        return f"{plate[:2]}{plate[2]}-{plate[3:6]}.{plate[6:]}"
+    return plate
+
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+try:
+    creds_dict = dict(st.secrets["google_service_account"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
+    st.stop()
+
+SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
+try:
+    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
+except Exception as e:
+    st.error(f"❌ Lỗi mở Google Sheet: {e}")
+    st.stop()
+
 query_id = st.query_params.get("id", "")
-
 if query_id:
-    # ✅ Ẩn sidebar hoàn toàn
     st.markdown("""
         <style>
             [data-testid="stSidebar"] {display: none;}
@@ -28,25 +50,15 @@ if query_id:
     st.title("🚗 QR Car Lookup")
     st.info(f"🔍 Đang tra cứu xe có biển số: {query_id}")
 
-    # ✅ Nhập mật khẩu
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
-    # ✅ Tải dữ liệu xe từ Google Sheets
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-        client = gspread.authorize(creds)
-
-        # ✅ Mở sheet theo ID và worksheet
-        sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Sheet1")
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
-
     except Exception as e:
-        st.error("❌ Không thể tải dữ liệu xe.")
+        st.error(f"❌ Không thể tải dữ liệu xe: {e}")
         st.stop()
 
-    # ✅ Kiểm tra mật khẩu
     if mat_khau:
         if mat_khau.strip() != "qr@217hb":
             st.error("❌ Sai mật khẩu!")
@@ -60,8 +72,8 @@ if query_id:
                 st.success("✅ Thông tin xe:")
                 st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-    st.stop()  # ✅ Dừng app tại đây, không cho chạy các phần khác
-# ========== GIAO DIỆN ==========
+    st.stop()
+
 st.markdown("""
     <style>
         .block-container {
@@ -82,46 +94,11 @@ menu = [
     "📱 Mã QR xe",
     "📤 Xuất ra Excel",
     "🔐 Quản lý mật khẩu",
-    
 ]
+
 default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=menu.index(default_tab))
 
-# ========== HÀM TIỆN ÍCH ==========
-def format_name(name):
-    return ' '.join(word.capitalize() for word in name.strip().split())
-
-def format_plate(plate):
-    plate = re.sub(r'[^a-zA-Z0-9]', '', plate).upper()
-    if len(plate) >= 8:
-        return f"{plate[:2]}{plate[2]}-{plate[3:6]}.{plate[6:]}"
-    return plate
-
-def normalize_plate(plate):
-    return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
-
-# ========== LẤY BIỂN SỐ TỪ URL ==========
-bien_so_qr = st.query_params["id"][0] if "id" in st.query_params else None
-
-# ========== GOOGLE SHEET ==========
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-try:
-    creds_dict = dict(st.secrets["google_service_account"])
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-except Exception as e:
-    st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
-    st.stop()
-
-SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
-try:
-    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
-except Exception as e:
-    st.error(f"❌ Lỗi mở Google Sheet: {e}")
-    st.stop()
-
-# ========== TẢI DỮ LIỆU ==========
 try:
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
@@ -129,7 +106,6 @@ except Exception as e:
     st.error(f"❌ Lỗi tải dữ liệu: {e}")
     st.stop()
 
-# ========== CÁC CHỨC NĂNG ==========
 if choice == "📋 Xem danh sách":
     st.subheader("Danh sách xe")
     st.dataframe(df)
@@ -224,8 +200,8 @@ elif choice == "✏️ Cập nhật xe":
                     chuc_vu_moi,
                     so_dien_thoai_moi,
                     email_moi
-                ]])
-                st.success("✅ Đã cập nhật thông tin xe thành công!")
+                    ]])
+                    st.success("✅ Đã cập nhật thông tin xe thành công!")
 
 elif choice == "🗑️ Xóa xe":
     st.subheader("🗑️ Xóa xe khỏi danh sách")
@@ -247,7 +223,7 @@ elif choice == "🗑️ Xóa xe":
                 row = ket_qua.iloc[0]
 
                 if st.button("Xác nhận xóa"):
-                    sheet.delete_rows(index + 2)  # +2 vì dòng header
+                    sheet.delete_rows(index + 2)
                     st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
 
         except Exception as e:
@@ -256,27 +232,19 @@ elif choice == "🗑️ Xóa xe":
 elif choice == "📱 Mã QR xe":
     st.subheader("📱 Mã QR xe")
 
-    # Kiểm tra nếu có biển số từ URL (quét QR)
     bien_so_url = st.query_params.get("id", "")
 
     if bien_so_url:
         st.info(f"🔍 Đang tra cứu xe có biển số: {bien_so_url}")
-
-        # Nhập mật khẩu để xem thông tin
         mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
         if mat_khau:
-            if mat_khau != "qr@217hb":  # Thay bằng mật khẩu thật nếu cần
+            if mat_khau != "qr@217hb":
                 st.error("❌ Sai mật khẩu!")
             else:
-                # Chuẩn hóa biển số từ URL
-                bien_so_norm = bien_so_url
-
-                # Chuẩn hóa dữ liệu bảng
+                bien_so_norm = normalize_plate(bien_so_url)
                 df = df.copy()
                 df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
-
-                # Tra cứu
                 ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
                 if ket_qua.empty:
@@ -286,37 +254,25 @@ elif choice == "📱 Mã QR xe":
                     st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
     else:
-        # Không có QR → cho phép nhập tay để tạo mã
         bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
         if bien_so_input:
             try:
-                # Chuẩn hóa biển số nhập vào
                 bien_so_norm = normalize_plate(bien_so_input)
-
-                # Chuẩn hóa dữ liệu bảng
                 df = df.copy()
                 df["Biển số chuẩn hóa"] = df["Biển số"].astype(str).apply(normalize_plate)
-
-                # Tìm xe khớp
                 ket_qua = df[df["Biển số chuẩn hóa"] == bien_so_norm]
 
                 if ket_qua.empty:
                     st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_input}")
                 else:
                     row = ket_qua.iloc[0]
-
-                    # Tạo link QR dùng biển số chuẩn hóa
-                    import qrcode
-                    import io
                     link = f"https://qrcarump.streamlit.app/?id={bien_so_norm}"
                     img = qrcode.make(link)
-                    buf = io.BytesIO()
+                    buf = BytesIO()
                     img.save(buf)
 
-                    # Hiển thị mã QR
                     st.image(buf.getvalue(), caption=f"Mã QR cho xe {row['Biển số']}", width=200)
 
-                    # Cho phép tải về
                     st.download_button(
                         label="📥 Tải mã QR",
                         data=buf.getvalue(),
@@ -324,12 +280,12 @@ elif choice == "📱 Mã QR xe":
                         mime="image/png"
                     )
 
-                    # Hiển thị thông tin xe
                     st.success("✅ Thông tin xe:")
                     st.dataframe(row.to_frame().T, use_container_width=True)
 
             except Exception as e:
                 st.error(f"⚠️ Lỗi khi xử lý: {e}")
+
 elif choice == "🔐 Quản lý mật khẩu":
     st.subheader("🔐 Quản lý mật khẩu")
 
