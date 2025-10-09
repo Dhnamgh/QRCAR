@@ -204,7 +204,7 @@ elif choice == "📱 Mã QR xe":
     st.subheader("📱 Mã QR xe")
 
     # Kiểm tra nếu có biển số từ URL (quét QR)
-    bien_so_url = st.query_params.get("id", [""])[0]
+    bien_so_url = st.query_params.get("id", "")
 
     if bien_so_url:
         st.info(f"🔍 Đang tra cứu xe có biển số: {bien_so_url}")
