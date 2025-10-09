@@ -307,14 +307,14 @@ elif choice == "🔐 Quản lý mật khẩu":
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='DanhSachXe')
-        writer.close()
-        processed_data = output.getvalue()
+with pd.ExcelWriter(output, engine='openpyxl') as writer:
+    df.to_excel(writer, index=False, sheet_name='DanhSachXe')
+    writer.close()
+    processed_data = output.getvalue()
 
-    st.download_button(
-        label="📥 Tải Excel",
-        data=processed_data,
-        file_name="DanhSachXe.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+st.download_button(
+    label="📥 Tải Excel",
+    data=processed_data,
+    file_name="DanhSachXe.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
