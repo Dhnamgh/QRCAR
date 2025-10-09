@@ -31,20 +31,17 @@ if query_id:
     # ✅ Nhập mật khẩu
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
-    # ✅ Tải dữ liệu xe từ Google Sheets hoặc nguồn khác
+    # ✅ Tải dữ liệu xe từ Google Sheets
     try:
-        import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        client = gspread.authorize(creds)
 
-# ✅ Kết nối Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(creds)
+        # ✅ Mở sheet theo ID và worksheet
+        sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Danh sách xe")
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
 
-# ✅ Mở sheet theo ID
-sheet = client.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc").worksheet("Danh sách xe")  # 👉 thay bằng tên worksheet thật nếu khác
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
     except Exception as e:
         st.error("❌ Không thể tải dữ liệu xe.")
         st.stop()
