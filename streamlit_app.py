@@ -303,6 +303,8 @@ elif choice == "🔐 Quản lý mật khẩu":
         else:
             st.session_state["mat_khau_qr"] = mat_khau_moi.strip()
             st.success(f"✅ Đã cập nhật mật khẩu QR thành `{mat_khau_moi.strip()}`")
+    st.stop()
+
 
 elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
