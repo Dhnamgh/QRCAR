@@ -215,7 +215,6 @@ elif choice == "➕ Đăng ký xe mới":
             ])
             st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
             st.experimental_rerun()
-
 elif choice == "✏️ Cập nhật xe":
     st.subheader("✏️ Cập nhật xe")
     bien_so_input = st.text_input("Nhập biển số xe cần cập nhật")
