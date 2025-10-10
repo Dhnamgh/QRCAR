@@ -293,3 +293,16 @@ elif choice == "📤 Xuất ra Excel":
         file_name="DanhSachXe.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+# 👉 Nội dung chân trang
+st.markdown("""
+<hr style='margin-top:50px; margin-bottom:20px;'>
+
+<div style='font-size:14px; line-height:1.6; text-align:center; color:#444;'>
+    <strong>Phòng Hành chính Tổng Hợp</strong><br>
+    217 Hồng Bàng, Phường Chợ Lớn, TP. Hồ Chí Minh<br>
+    ĐT: (+84-28) 3855 8411 - (+84-28) 3853 7949 - (+84-28) 3855 5780<br>
+    Fax: (+84-28) 3855 2304<br>
+    Email: <a href='mailto:hanhchinh@ump.edu.vn'>hanhchinh@ump.edu.vn</a><br><br>
+    <em>Copyright © 2025 Bản quyền thuộc về Phòng Hành chính Tổng Hợp - Đại học Y Dược Thành phố Hồ Chí Minh</em>
+</div>
+""", unsafe_allow_html=True)
