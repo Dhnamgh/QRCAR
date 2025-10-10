@@ -333,33 +333,22 @@ elif choice == "📤 Xuất ra Excel":
         file_name="DanhSachXe.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-import plotly.express as px
+elif choice == "📊 Thống kê xe theo đơn vị":
+    st.subheader("📊 Thống kê số lượng xe theo đơn vị")
 
-# 👉 Gom nhóm theo đơn vị
-thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
-thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
+    df = pd.DataFrame(sheet.get_all_records())
 
-# 👉 Vẽ biểu đồ cột với màu sắc rõ ràng và số lượng trên cột
-fig = px.bar(
-    thong_ke,
-    x="Tên đơn vị",
-    y="Số lượng xe",
-    color="Tên đơn vị",  # ✅ mỗi đơn vị một màu
-    text="Số lượng xe",  # ✅ hiển thị số trên cột
-    title="📊 Số lượng xe theo từng đơn vị",
-)
+    # 👉 Gom nhóm theo đơn vị
+    thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+    thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
 
-# 👉 Tùy chỉnh hiển thị
-fig.update_traces(textposition="outside")
-fig.update_layout(
-    xaxis_title="Đơn vị",
-    yaxis_title="Số lượng xe",
-    showlegend=False,
-    height=600,
-    margin=dict(t=50, b=50, l=50, r=50),
-)
+    # 👉 Vẽ biểu đồ cột đơn giản, không cần thư viện ngoài
+    st.markdown("### 📈 Biểu đồ số lượng xe theo đơn vị")
+    st.bar_chart(thong_ke.set_index("Tên đơn vị"))
 
-st.plotly_chart(fig, use_container_width=True)
+    # 👉 Hiển thị bảng thống kê chi tiết
+    st.markdown("### 📋 Bảng thống kê chi tiết")
+    st.dataframe(thong_ke, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
