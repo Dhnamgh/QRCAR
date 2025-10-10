@@ -57,12 +57,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-    <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <div></div>
-        <div><img src='ump_title.png' width='300'></div>
-    </div>
-""", unsafe_allow_html=True)
+col1, col2 = st.columns([1, 3])
+with col2:
+    st.image("ump_title.png", width=300)
 
 st.title("🚗 QR Car Management")
 
