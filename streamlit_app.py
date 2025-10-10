@@ -58,10 +58,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ Dùng layout Streamlit để đảm bảo responsive
 col1, col2, col3 = st.columns([1, 6, 1])
 with col2:
-    st.image("ump_title.png", use_column_width=True)
+    st.image("ump_title.png", use_container_width=True)
 
 st.title("🚗 QR Car Management")
 
