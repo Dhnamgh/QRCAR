@@ -43,26 +43,15 @@ except Exception as e:
 st.sidebar.image("ump_logo.png", width=120)
 st.sidebar.markdown("---")
 
-# 👉 Phần chính: banner tiêu đề + tiêu đề app
+# 👉 Tạo khung giữ chiều cao ảnh
 st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-        h1 {
-            text-align: center;
-            color: #004080;
-            margin-top: 1rem;
-        }
-    </style>
+    <div style='height:150px; display:flex; justify-content:center; align-items:center;'>
+        <img src='ump_title.png' style='max-height:100%; object-fit:contain;'>
+    </div>
 """, unsafe_allow_html=True)
 
-# ✅ Ảnh banner hiển thị độc lập, không layout ép
-st.image("ump_title.png", use_container_width=True)
-
-# ✅ Tiêu đề luôn hiển thị đầy đủ
-st.title("🚗 QR Car Management")
+# 👉 Tiêu đề rõ ràng, không bị ảnh đè
+st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
 query_id = st.query_params.get("id", "")
