@@ -116,10 +116,12 @@ elif choice == "🔍 Tìm kiếm xe":
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
+import re
+
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("📋 Đăng ký xe mới")
 
-    # 👉 Danh sách đơn vị cố định (chuẩn hóa tên và mã)
+    # 👉 Danh sách đơn vị cố định
     don_vi_map = {
         "HCTH": "HCT",
         "TCCB": "TCC",
@@ -154,33 +156,64 @@ elif choice == "➕ Đăng ký xe mới":
     ten_don_vi = st.selectbox("Chọn đơn vị", ten_don_vi_list)
     ma_don_vi = don_vi_map[ten_don_vi]
 
-    # 👉 Nhập thông tin cá nhân
+    # 👉 Nhập thông tin
     col1, col2 = st.columns(2)
     with col1:
-        ho_ten = st.text_input("Họ tên")
-        bien_so = st.text_input("Biển số xe")
+        ho_ten_raw = st.text_input("Họ tên")
+        bien_so_raw = st.text_input("Biển số xe")
     with col2:
         chuc_vu = st.text_input("Chức vụ")
         so_dien_thoai = st.text_input("Số điện thoại")
         email = st.text_input("Email")
 
-    # 👉 Sinh mã thẻ tự động theo mã đơn vị + số thứ tự
-    filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
-    if not filtered.empty:
-        numbers = filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int)
-        next_number = max(numbers) + 1
+    # 👉 Chuẩn hóa họ tên
+    ho_ten = " ".join(word.capitalize() for word in ho_ten_raw.strip().split())
+
+    # 👉 Chuẩn hóa biển số: bỏ dấu, viết hoa
+    def chuan_hoa_bien_so(bs):
+        bs = bs.upper()
+        bs = re.sub(r"[^A-Z0-9]", "", bs)  # bỏ dấu gạch, chấm, khoảng trắng
+        return bs
+
+    bien_so = chuan_hoa_bien_so(bien_so_raw)
+
+    # 👉 Kiểm tra trùng biển số
+    bien_so_da_dang_ky = df["Biển số"].dropna().apply(chuan_hoa_bien_so)
+    if bien_so in bien_so_da_dang_ky.values:
+        st.error("🚫 Biển số này đã được đăng ký trước đó!")
+    elif not so_dien_thoai.startswith("0"):
+        st.warning("⚠️ Số điện thoại phải bắt đầu bằng số 0.")
+    elif ho_ten == "":
+        st.warning("⚠️ Vui lòng nhập họ tên.")
+    elif bien_so == "":
+        st.warning("⚠️ Vui lòng nhập biển số xe.")
     else:
-        next_number = 1
-    ma_the = f"{ma_don_vi}{next_number:03d}"
+        # 👉 Sinh mã thẻ
+        filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
+        if not filtered.empty:
+            numbers = filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int)
+            next_number = max(numbers) + 1
+        else:
+            next_number = 1
+        ma_the = f"{ma_don_vi}{next_number:03d}"
 
-    # 👉 Hiển thị mã thẻ và mã đơn vị
-    st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
-    st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
+        st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
+        st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
-    # 👉 Nút đăng ký
-    if st.button("Đăng ký"):
-        # 👉 Ghi dữ liệu vào sheet (nếu có xử lý ghi)
-        st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
+        if st.button("Đăng ký"):
+            worksheet.append_row([
+                len(df) + 1,
+                ho_ten,
+                bien_so_raw,
+                ma_the,
+                ma_don_vi,
+                ten_don_vi,
+                chuc_vu,
+                so_dien_thoai,
+                email
+            ])
+            st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
+            st.experimental_rerun()
 
 elif choice == "✏️ Cập nhật xe":
     st.subheader("✏️ Cập nhật xe")
