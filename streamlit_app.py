@@ -87,7 +87,7 @@ elif choice == "🔍 Tìm kiếm xe":
         else:
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
-            elif choice == "➕ Đăng ký xe mới":
+elif choice == "➕ Đăng ký xe mới":
     st.subheader("📋 Đăng ký xe mới")
     df = pd.DataFrame(sheet.get_all_records())
 
@@ -220,7 +220,7 @@ elif choice == "📱 Mã QR xe":
                     st.success("✅ Thông tin xe:")
                     st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
     else:
-        bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
+                bien_so_input = st.text_input("📋 Nhập biển số xe để tạo mã QR")
         if bien_so_input:
             try:
                 bien_so_norm = normalize_plate(bien_so_input)
@@ -250,7 +250,7 @@ elif choice == "📱 Mã QR xe":
 
             except Exception as e:
                 st.error(f"⚠️ Lỗi khi xử lý: {e}")
-    elif choice == "📤 Xuất ra Excel":
+elif choice == "📤 Xuất ra Excel":
     st.subheader("📤 Tải danh sách xe dưới dạng Excel")
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
