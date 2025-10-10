@@ -55,24 +55,13 @@ st.markdown("""
             color: #004080;
             margin-top: 1rem;
         }
-        .banner-container {
-            text-align: center;
-            margin-bottom: 0.5rem;
-        }
-        .banner-container img {
-            width: 100%;
-            max-height: 150px;
-            object-fit: contain;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-    <div class='banner-container'>
-        <img src='ump_title.png'>
-    </div>
-""", unsafe_allow_html=True)
+# ✅ Ảnh banner hiển thị độc lập, không layout ép
+st.image("ump_title.png", use_container_width=True)
 
+# ✅ Tiêu đề luôn hiển thị đầy đủ
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
