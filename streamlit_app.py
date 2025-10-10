@@ -42,15 +42,6 @@ except Exception as e:
 # 👉 Sidebar: logo trường
 st.sidebar.image("ump_logo.png", width=120)
 st.sidebar.markdown("---")
-
-# 👉 Tạo khung giữ chiều cao ảnh
-st.markdown("""
-    <div style='height:150px; display:flex; justify-content:center; align-items:center;'>
-        <img src='ump_title.png' style='max-height:100%; object-fit:contain;'>
-    </div>
-""", unsafe_allow_html=True)
-
-# 👉 Tiêu đề rõ ràng, không bị ảnh đè
 st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
