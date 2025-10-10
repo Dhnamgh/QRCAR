@@ -146,17 +146,14 @@ don_vi_map = {
     "Trường Dược": "TRD", "Trường ĐD-KTYH": "TRK", "KHCB": "KHB", "RHM": "RHM", "YTCC": "YTC",
     "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
     "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY",
-    
     # ✅ Bổ sung đơn vị mới
     "BV ĐHYD": "BVY",         # Bệnh viện ĐHYD
     "TT.PTTN": "PTN",         # Trung tâm PTTN
     "TT. GDYH": "GDY",        # Trung tâm GDYH
     "VPĐ": "VPD"              # VP Đoàn thể
 }
-
     ten_don_vi = st.selectbox("Chọn đơn vị", list(don_vi_map.keys()))
     ma_don_vi = don_vi_map[ten_don_vi]
-
     col1, col2 = st.columns(2)
     with col1:
         ho_ten_raw = st.text_input("Họ tên")
