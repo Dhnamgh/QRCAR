@@ -161,19 +161,22 @@ elif choice == "➕ Đăng ký xe mới":
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
         if st.button("Đăng ký"):
-            sheet.append_row([
-                len(df) + 1,
-                ho_ten,
-                bien_so_raw,
-                ma_the,
-                ma_don_vi,
-                ten_don_vi,
-                chuc_vu,
-                so_dien_thoai,
-                email
-            ])
-            st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
-            st.experimental_rerun()
+            try:
+                sheet.append_row([
+                    len(df) + 1,
+                    ho_ten,
+                    bien_so_raw,
+                    ma_the,
+                    ma_don_vi,
+                    ten_don_vi,
+                    chuc_vu,
+                    so_dien_thoai,
+                    email
+                ])
+                st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
+                st.toast("🎉 Dữ liệu đã được ghi vào Google Sheet!")
+            except Exception as e:
+                st.error(f"❌ Lỗi ghi dữ liệu: {e}")
 elif choice == "✏️ Cập nhật xe":
     st.subheader("✏️ Cập nhật xe")
     bien_so_input = st.text_input("Nhập biển số xe cần cập nhật")
