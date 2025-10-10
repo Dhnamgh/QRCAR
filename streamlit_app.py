@@ -145,8 +145,8 @@ elif choice == "➕ Đăng ký xe mới":
         "QTGT": "QTG", "TTPC": "TTP", "ĐBCLGD&KT": "DBK", "CTSV": "CTS", "Trường Y": "TRY",
         "Trường Dược": "TRD", "Trường ĐD-KTYH": "TRK", "KHCB": "KHB", "RHM": "RHM", "YTCC": "YTC",
         "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
-        "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY",
-        # ✅ Bổ sung đơn vị mới
+        "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY"
+         # ✅ Bổ sung đơn vị mới
         "BV ĐHYD": "BVY",         # Bệnh viện ĐHYD
         "TT.PTTN": "PTN",         # Trung tâm PTTN
         "TT. GDYH": "GDY",        # Trung tâm GDYH
@@ -184,7 +184,7 @@ elif choice == "➕ Đăng ký xe mới":
 
         st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
-
+   
         if st.button("📥 Đăng ký"):
             try:
                 sheet.append_row([
@@ -397,16 +397,12 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         showlegend=False,
         height=600
     )
-    # 👉 Biểu đồ sát trái, không thừa khoảng trắng
-    col1, col2 = st.columns([0.01, 0.99])
-    with col2:
-        st.plotly_chart(fig, use_container_width=True)
 
-    # 👉 Bảng thống kê bên dưới, full chiều ngang
-    st.markdown("#### 📋 Bảng thống kê chi tiết")
-    thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
-    thong_ke_display.index = range(1, len(thong_ke_display) + 1)
-    st.dataframe(thong_ke_display, use_container_width=True)
+   # 👉 Đẩy biểu đồ sát trái bằng cột lệch
+col = st.columns([0.1, 0.9])
+with col[1]:
+    st.plotly_chart(fig, use_container_width=True)
+
 # 👉 Bảng thống kê bên dưới, full chiều ngang
 st.markdown("#### 📋 Bảng thống kê chi tiết")
 thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
