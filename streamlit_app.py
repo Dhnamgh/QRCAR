@@ -58,12 +58,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ Dùng layout columns để ảnh nằm giữa, không lỗi
-col1, col2, col3 = st.columns([1, 6, 1])
-with col2:
+# ✅ Dùng container riêng, không ép layout
+with st.container():
     st.image("ump_title.png", use_container_width=True)
 
-# ✅ Đặt tiêu đề sau ảnh, đảm bảo hiển thị
+# ✅ Tiêu đề luôn hiển thị đầy đủ
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
