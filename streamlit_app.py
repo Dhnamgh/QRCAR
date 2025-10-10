@@ -165,7 +165,7 @@ elif choice == "➕ Đăng ký xe mới":
                 sheet.append_row([
                     len(df) + 1,
                     ho_ten,
-                    bien_so_raw,
+                    dinh_dang_bien_so(bien_so_raw),  # 👉 chuẩn hóa khi ghi
                     ma_the,
                     ma_don_vi,
                     ten_don_vi,
