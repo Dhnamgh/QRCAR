@@ -397,12 +397,16 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         showlegend=False,
         height=600
     )
+    # 👉 Biểu đồ sát trái, không thừa khoảng trắng
+    col1, col2 = st.columns([0.01, 0.99])
+    with col2:
+        st.plotly_chart(fig, use_container_width=True)
 
-   # 👉 Biểu đồ sát trái, không thừa khoảng trắng
-col1, col2 = st.columns([0.01, 0.99])
-with col2:
-    st.plotly_chart(fig, use_container_width=True)
-
+    # 👉 Bảng thống kê bên dưới, full chiều ngang
+    st.markdown("#### 📋 Bảng thống kê chi tiết")
+    thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
+    thong_ke_display.index = range(1, len(thong_ke_display) + 1)
+    st.dataframe(thong_ke_display, use_container_width=True)
 # 👉 Bảng thống kê bên dưới, full chiều ngang
 st.markdown("#### 📋 Bảng thống kê chi tiết")
 thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
