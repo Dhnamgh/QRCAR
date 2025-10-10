@@ -393,15 +393,14 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         height=600
     )
 
-    # 👉 Hiển thị dashboard: biểu đồ + bảng
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        st.plotly_chart(fig, use_container_width=True)
-    with col2:
-        st.markdown("#### 📋 Bảng thống kê chi tiết")  # ✅ chỉnh cỡ tiêu đề bảng
-        thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
-        thong_ke_display.index = range(1, len(thong_ke_display) + 1)  # ✅ bắt đầu từ 1
-        st.dataframe(thong_ke_display, use_container_width=True)
+   # 👉 Hiển thị biểu đồ full chiều ngang, sát trái
+st.plotly_chart(fig, use_container_width=True)
+
+# 👉 Hiển thị bảng bên dưới, đủ rộng
+st.markdown("#### 📋 Bảng thống kê chi tiết")  # ✅ tiêu đề đồng bộ
+thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
+thong_ke_display.index = range(1, len(thong_ke_display) + 1)  # ✅ bắt đầu từ 1
+st.dataframe(thong_ke_display, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
