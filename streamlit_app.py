@@ -333,23 +333,33 @@ elif choice == "📤 Xuất ra Excel":
         file_name="DanhSachXe.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-elif choice == "📊 Thống kê xe theo đơn vị":
-    st.subheader("📊 Thống kê số lượng xe theo đơn vị")
+import plotly.express as px
 
-    df = pd.DataFrame(sheet.get_all_records())
+# 👉 Gom nhóm theo đơn vị
+thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
 
-    thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
-    thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
+# 👉 Vẽ biểu đồ cột với màu sắc rõ ràng và số lượng trên cột
+fig = px.bar(
+    thong_ke,
+    x="Tên đơn vị",
+    y="Số lượng xe",
+    color="Tên đơn vị",  # ✅ mỗi đơn vị một màu
+    text="Số lượng xe",  # ✅ hiển thị số trên cột
+    title="📊 Số lượng xe theo từng đơn vị",
+)
 
-    don_vi_chon = st.selectbox("Chọn đơn vị để xem chi tiết", ["Tất cả"] + thong_ke["Tên đơn vị"].tolist())
+# 👉 Tùy chỉnh hiển thị
+fig.update_traces(textposition="outside")
+fig.update_layout(
+    xaxis_title="Đơn vị",
+    yaxis_title="Số lượng xe",
+    showlegend=False,
+    height=600,
+    margin=dict(t=50, b=50, l=50, r=50),
+)
 
-    if don_vi_chon != "Tất cả":
-        df_don_vi = df[df["Tên đơn vị"] == don_vi_chon]
-        st.markdown(f"### 📋 Danh sách xe của đơn vị `{don_vi_chon}`")
-        st.dataframe(df_don_vi, use_container_width=True)
-
-    st.markdown("### 📈 Biểu đồ số lượng xe theo đơn vị")
-    st.bar_chart(thong_ke.set_index("Tên đơn vị"))
+st.plotly_chart(fig, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
