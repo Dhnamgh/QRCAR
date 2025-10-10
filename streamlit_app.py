@@ -116,12 +116,10 @@ elif choice == "🔍 Tìm kiếm xe":
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-import re
-
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("📋 Đăng ký xe mới")
 
-    # 👉 Danh sách đơn vị cố định
+    # 👉 Danh sách đơn vị cố định (chuẩn hóa tên và mã)
     don_vi_map = {
         "HCTH": "HCT",
         "TCCB": "TCC",
@@ -169,10 +167,11 @@ elif choice == "➕ Đăng ký xe mới":
     # 👉 Chuẩn hóa họ tên
     ho_ten = " ".join(word.capitalize() for word in ho_ten_raw.strip().split())
 
-    # 👉 Chuẩn hóa biển số: bỏ dấu, viết hoa
+    # 👉 Chuẩn hóa biển số
+    import re
     def chuan_hoa_bien_so(bs):
         bs = bs.upper()
-        bs = re.sub(r"[^A-Z0-9]", "", bs)  # bỏ dấu gạch, chấm, khoảng trắng
+        bs = re.sub(r"[^A-Z0-9]", "", bs)
         return bs
 
     bien_so = chuan_hoa_bien_so(bien_so_raw)
