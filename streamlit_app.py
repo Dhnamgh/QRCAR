@@ -39,7 +39,11 @@ except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
 
-# 👉 Tối ưu phần đầu giao diện
+# 👉 Sidebar: logo trường
+st.sidebar.image("ump_logo.png", width=120)
+st.sidebar.markdown("---")
+
+# 👉 Phần chính: hình tiêu đề bên phải + tiêu đề app
 st.markdown("""
     <style>
         .block-container {
@@ -47,17 +51,19 @@ st.markdown("""
             padding-bottom: 1rem;
         }
         h1 {
-            text-align: center;
             color: #004080;
-        }
-        .logo-container {
-            text-align: center;
-            margin-bottom: -10px;
+            margin-top: 0.5rem;
         }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='logo-container'><img src='logo.png' width='120'></div>", unsafe_allow_html=True)
+st.markdown("""
+    <div style='display: flex; justify-content: space-between; align-items: center;'>
+        <div></div>
+        <div><img src='ump_title.png' width='300'></div>
+    </div>
+""", unsafe_allow_html=True)
+
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
@@ -95,7 +101,6 @@ if query_id:
                 st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
     st.stop()
-
 menu = [
     "📋 Xem danh sách",
     "🔍 Tìm kiếm xe",
