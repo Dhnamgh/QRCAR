@@ -334,20 +334,71 @@ elif choice == "📤 Xuất ra Excel":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 elif choice == "📊 Thống kê xe theo đơn vị":
+    st.markdown("## 📊 Dashboard thống kê xe theo đơn vị")
+
     df = pd.DataFrame(sheet.get_all_records())
 
-    # 👉 Gom nhóm theo đơn vị
+    # 👉 Từ điển ánh xạ tên viết tắt → tên đầy đủ
+    ten_day_du = {
+        "HCTH": "Phòng Hành Chính Tổng hợp",
+        "TCCB": "Phòng Tổ chức Cán bộ",
+        "ĐTĐH": "Phòng Đào tạo Đại học",
+        "ĐTSĐH": "Phòng Đào tạo Sau đại học",
+        "KHCN": "Phòng Khoa học Công nghệ",
+        "KHTC": "Phòng Kế hoạch Tài chính",
+        "QTGT": "Phòng Quản trị Giáo tài",
+        "TTPC": "Phòng Thanh tra Pháp chế",
+        "ĐBCLGD&KT": "Phòng Đảm bảo chất lượng GD và Khảo thí",
+        "CTSV": "Phòng Công tác sinh viên",
+        "KHCB": "Khoa Khoa học Cơ bản",
+        "RHM": "Khoa Răng hàm mặt",
+        "YTCC": "Khoa Y tế Công cộng",
+        "PK.CKRHM": "Phòng khám RHM",
+        "TT.KCCLXN": "Trung tâm Kiểm chuẩn CLXN",
+        "TT.KHCN UMP": "Trung tâm KHCN UMP",
+        "TT.YSHPT": "Trung tâm Y sinh học phân tử",
+        "KTX": "Ký túc xá",
+        "BV ĐHYD": "Bệnh viện ĐHYD",
+        "TT.PTTN": "Trung tâm PTTN",
+        "TT. GDYH": "Trung tâm GDYH",
+        "VPĐ": "VP Đoàn thể",
+        "Trường Y": "Trường Y",
+        "Trường Dược": "Trường Dược",
+        "Trường ĐD-KTYH": "Trường ĐD-KTYH",
+        "Thư viện": "Thư viện",
+        "Tạp chí Y học": "Tạp chí Y học"
+    }
+
+    # 👉 Gom nhóm và ánh xạ tên đơn vị
     thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+    thong_ke["Tên đơn vị"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
     thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
 
-    # 👉 Vẽ biểu đồ cột đơn giản, không cần thư viện ngoài
-    st.markdown("### 📈 Biểu đồ số lượng xe theo đơn vị")
-    st.bar_chart(thong_ke.set_index("Tên đơn vị"))
+    # 👉 Vẽ biểu đồ bằng plotly
+    import plotly.express as px
+    fig = px.bar(
+        thong_ke,
+        x="Tên đơn vị",
+        y="Số lượng xe",
+        color="Tên đơn vị",
+        text="Số lượng xe",
+        title="📈 Biểu đồ số lượng xe theo đơn vị"
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(
+        xaxis=dict(tickfont=dict(size=14, family="Arial", color="black", weight="bold")),
+        showlegend=False,
+        height=600
+    )
 
-    # 👉 Hiển thị bảng thống kê chi tiết
-    st.markdown("### 📋 Bảng thống kê chi tiết")
-    thong_ke.index = range(1, len(thong_ke) + 1)
-    st.dataframe(thong_ke, use_container_width=True)
+    # 👉 Hiển thị dashboard: biểu đồ + bảng
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        st.markdown("### 📋 Bảng thống kê chi tiết")
+        thong_ke.index = range(1, len(thong_ke) + 1)
+        st.dataframe(thong_ke, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
