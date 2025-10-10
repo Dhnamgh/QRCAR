@@ -369,16 +369,18 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         "Tạp chí Y học": "Tạp chí Y học"
     }
 
-    # 👉 Gom nhóm và ánh xạ tên đơn vị
+    # 👉 Gom nhóm và tạo bảng thống kê
     thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
-    thong_ke["Tên đơn vị"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
     thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
 
-    # 👉 Vẽ biểu đồ bằng plotly
+    # 👉 Tạo cột tên đầy đủ cho bảng
+    thong_ke["Tên đầy đủ"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
+
+    # 👉 Vẽ biểu đồ dùng tên viết tắt
     import plotly.express as px
     fig = px.bar(
         thong_ke,
-        x="Tên đơn vị",
+        x="Tên đơn vị",  # dùng viết tắt để trục X gọn
         y="Số lượng xe",
         color="Tên đơn vị",
         text="Số lượng xe",
@@ -396,9 +398,10 @@ elif choice == "📊 Thống kê xe theo đơn vị":
     with col1:
         st.plotly_chart(fig, use_container_width=True)
     with col2:
-        st.markdown("### 📋 Bảng thống kê chi tiết")
-        thong_ke.index = range(1, len(thong_ke) + 1)
-        st.dataframe(thong_ke, use_container_width=True)
+        st.markdown("#### 📋 Bảng thống kê chi tiết")  # ✅ chỉnh cỡ tiêu đề bảng
+        thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
+        thong_ke_display.index = range(1, len(thong_ke_display) + 1)  # ✅ bắt đầu từ 1
+        st.dataframe(thong_ke_display, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
