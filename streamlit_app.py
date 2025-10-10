@@ -8,6 +8,7 @@ import re
 from PIL import Image
 from io import BytesIO
 
+# 👉 Hàm xử lý biển số và tên
 def normalize_plate(plate):
     return re.sub(r'[^a-zA-Z0-9]', '', plate).lower()
 
@@ -20,6 +21,7 @@ def format_plate(plate):
         return f"{plate[:2]}{plate[2]}-{plate[3:6]}.{plate[6:]}"
     return plate
 
+# 👉 Khởi tạo Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 try:
     creds_dict = dict(st.secrets["google_service_account"])
@@ -37,6 +39,28 @@ except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
 
+# 👉 Tối ưu phần đầu giao diện
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        h1 {
+            text-align: center;
+            color: #004080;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: -10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("<div class='logo-container'><img src='logo.png' width='120'></div>", unsafe_allow_html=True)
+st.title("🚗 QR Car Management")
+
+# 👉 Xử lý tra cứu từ URL nếu có query_id
 query_id = st.query_params.get("id", "")
 if query_id:
     st.markdown("""
@@ -47,9 +71,7 @@ if query_id:
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("🚗 QR Car Lookup")
     st.info(f"🔍 Đang tra cứu xe có biển số: {query_id}")
-
     mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
 
     try:
@@ -73,18 +95,6 @@ if query_id:
                 st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
     st.stop()
-
-st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-st.image("logo.png", width=120)
-st.title("🚗 QR Car Management")
 
 menu = [
     "📋 Xem danh sách",
