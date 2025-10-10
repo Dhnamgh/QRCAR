@@ -43,7 +43,7 @@ except Exception as e:
 st.sidebar.image("ump_logo.png", width=120)
 st.sidebar.markdown("---")
 
-# 👉 Phần chính: hình tiêu đề bên phải + tiêu đề app
+# 👉 Phần chính: banner tiêu đề + tiêu đề app
 st.markdown("""
     <style>
         .block-container {
@@ -51,16 +51,18 @@ st.markdown("""
             padding-bottom: 1rem;
         }
         h1 {
+            text-align: center;
             color: #004080;
             margin-top: 0.5rem;
+        }
+        .banner-container {
+            text-align: center;
+            margin-bottom: 0.5rem;
         }
     </style>
 """, unsafe_allow_html=True)
 
-col1, col2 = st.columns([1, 3])
-with col2:
-    st.image("ump_title.png", width=300)
-
+st.markdown("<div class='banner-container'><img src='ump_title.png' style='width:100%; height:auto;'></div>", unsafe_allow_html=True)
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
