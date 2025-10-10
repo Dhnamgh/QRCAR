@@ -119,7 +119,6 @@ elif choice == "🔍 Tìm kiếm xe":
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("📋 Đăng ký xe mới")
 
-    # 👉 Đọc dữ liệu hiện tại
     df = pd.DataFrame(sheet.get_all_records())
 
     # 👉 Hàm chuẩn hóa biển số
@@ -129,7 +128,7 @@ elif choice == "➕ Đăng ký xe mới":
             return f"{bs[:3]}-{bs[3:6]}.{bs[6:]}"
         return bs
 
-    # 👉 Danh sách đơn vị cố định
+    # 👉 Danh sách đơn vị
     don_vi_map = {
         "HCTH": "HCT", "TCCB": "TCC", "ĐTĐH": "DTD", "ĐTSĐH": "DTS", "KHCN": "KHC", "KHTC": "KHT",
         "QTGT": "QTG", "TTPC": "TTP", "ĐBCLGD&KT": "DBK", "CTSV": "CTS", "Trường Y": "TRY",
@@ -138,11 +137,9 @@ elif choice == "➕ Đăng ký xe mới":
         "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY"
     }
 
-    # 👉 Chọn đơn vị
     ten_don_vi = st.selectbox("Chọn đơn vị", list(don_vi_map.keys()))
     ma_don_vi = don_vi_map[ten_don_vi]
 
-    # 👉 Nhập thông tin
     col1, col2 = st.columns(2)
     with col1:
         ho_ten_raw = st.text_input("Họ tên")
@@ -152,13 +149,12 @@ elif choice == "➕ Đăng ký xe mới":
         so_dien_thoai = st.text_input("Số điện thoại")
         email = st.text_input("Email")
 
-    # 👉 Chuẩn hóa dữ liệu
     ho_ten = " ".join(word.capitalize() for word in ho_ten_raw.strip().split())
     chuc_vu = " ".join(word.capitalize() for word in chuc_vu_raw.strip().split())
     bien_so = dinh_dang_bien_so(bien_so_raw)
 
-    # 👉 Kiểm tra trùng biển số
     bien_so_da_dang_ky = df["Biển số"].dropna().apply(dinh_dang_bien_so)
+
     if bien_so in bien_so_da_dang_ky.values:
         st.error("🚫 Biển số này đã được đăng ký trước đó!")
     elif not so_dien_thoai.startswith("0"):
@@ -166,7 +162,6 @@ elif choice == "➕ Đăng ký xe mới":
     elif ho_ten == "" or bien_so == "":
         st.warning("⚠️ Vui lòng nhập đầy đủ thông tin.")
     else:
-        # 👉 Sinh mã thẻ
         filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
         next_number = max(filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int), default=0) + 1
         ma_the = f"{ma_don_vi}{next_number:03d}"
@@ -174,13 +169,13 @@ elif choice == "➕ Đăng ký xe mới":
         st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
-        # 👉 Nút đăng ký
+        # ✅ Nút đăng ký vẫn ở đây, không bị mất
         if st.button("📥 Đăng ký"):
             try:
                 sheet.append_row([
                     len(df) + 1,
                     ho_ten,
-                    bien_so,
+                    bien_so,  # ✅ Biển số đã chuẩn hóa
                     ma_the,
                     ma_don_vi,
                     ten_don_vi,
