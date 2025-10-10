@@ -83,18 +83,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.image("logo.png", width=120)  # 👈 Logo nằm trên cùng
+st.image("logo.png", width=120)
 st.title("🚗 QR Car Management")
-
-menu = [
-    "📋 Xem danh sách",
-    "🔍 Tìm kiếm xe",
-    "➕ Đăng ký xe mới",
-    "✏️ Cập nhật xe",
-    "🗑️ Xóa xe",
-    "📱 Mã QR xe",
-    "📤 Xuất ra Excel",
-]
 
 menu = [
     "📋 Xem danh sách",
