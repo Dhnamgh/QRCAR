@@ -393,9 +393,9 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         height=600
     )
 
-   # 👉 Đẩy biểu đồ sát trái bằng cột lệch
-col = st.columns([0.1, 0.9])
-with col[1]:
+   # 👉 Biểu đồ sát trái, không thừa khoảng trắng
+col1, col2 = st.columns([0.01, 0.99])
+with col2:
     st.plotly_chart(fig, use_container_width=True)
 
 # 👉 Bảng thống kê bên dưới, full chiều ngang
