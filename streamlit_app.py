@@ -346,6 +346,7 @@ elif choice == "📊 Thống kê xe theo đơn vị":
 
     # 👉 Hiển thị bảng thống kê chi tiết
     st.markdown("### 📋 Bảng thống kê chi tiết")
+    thong_ke.index = range(1, len(thong_ke) + 1)
     st.dataframe(thong_ke, use_container_width=True)
 # 👉 Nội dung chân trang
 st.markdown("""
