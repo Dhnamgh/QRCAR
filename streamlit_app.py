@@ -119,39 +119,17 @@ elif choice == "🔍 Tìm kiếm xe":
 elif choice == "➕ Đăng ký xe mới":
     st.subheader("📋 Đăng ký xe mới")
 
-    # 👉 Danh sách đơn vị cố định (chuẩn hóa tên và mã)
+    # 👉 Danh sách đơn vị cố định
     don_vi_map = {
-        "HCTH": "HCT",
-        "TCCB": "TCC",
-        "ĐTĐH": "DTD",
-        "ĐTSĐH": "DTS",
-        "KHCN": "KHC",
-        "KHTC": "KHT",
-        "QTGT": "QTG",
-        "TTPC": "TTP",
-        "ĐBCLGD&KT": "DBK",
-        "CTSV": "CTS",
-        "Trường Y": "TRY",
-        "Trường Dược": "TRD",
-        "Trường ĐD-KTYH": "TRK",
-        "KHCB": "KHB",
-        "RHM": "RHM",
-        "YTCC": "YTC",
-        "PK.CKRHM": "CKR",
-        "TT.KCCLXN": "KCL",
-        "TT.PTTN": "PTN",
-        "TT.ĐTNLYT": "DTL",
-        "TT.CNTT": "CNT",
-        "TT.KHCN UMP": "KCU",
-        "TT.YSHPT": "YSH",
-        "Thư viện": "TV",
-        "KTX": "KTX",
-        "Tạp chí Y học": "TCY"
+        "HCTH": "HCT", "TCCB": "TCC", "ĐTĐH": "DTD", "ĐTSĐH": "DTS", "KHCN": "KHC", "KHTC": "KHT",
+        "QTGT": "QTG", "TTPC": "TTP", "ĐBCLGD&KT": "DBK", "CTSV": "CTS", "Trường Y": "TRY",
+        "Trường Dược": "TRD", "Trường ĐD-KTYH": "TRK", "KHCB": "KHB", "RHM": "RHM", "YTCC": "YTC",
+        "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
+        "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY"
     }
 
     # 👉 Chọn đơn vị
-    ten_don_vi_list = list(don_vi_map.keys())
-    ten_don_vi = st.selectbox("Chọn đơn vị", ten_don_vi_list)
+    ten_don_vi = st.selectbox("Chọn đơn vị", list(don_vi_map.keys()))
     ma_don_vi = don_vi_map[ten_don_vi]
 
     # 👉 Nhập thông tin
@@ -191,7 +169,7 @@ elif choice == "➕ Đăng ký xe mới":
         # 👉 Sinh mã thẻ
         filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
         if not filtered.empty:
-            numbers = filtered.str.extract(f"{ma_don_vi}(\d{3})")[0].dropna().astype(int)
+            numbers = filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int)
             next_number = max(numbers) + 1
         else:
             next_number = 1
