@@ -58,13 +58,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ Dùng HTML để ảnh co giãn đúng tỷ lệ, không bị cắt
-st.markdown("""
-    <div style='text-align: center; margin-bottom: 10px;'>
-        <img src='ump_title.png' style='width:100%; max-height:120px; object-fit:contain;'>
-    </div>
-""", unsafe_allow_html=True)
+# ✅ Dùng layout columns để ảnh nằm giữa, không lỗi
+col1, col2, col3 = st.columns([1, 6, 1])
+with col2:
+    st.image("ump_title.png", use_container_width=True)
 
+# ✅ Đặt tiêu đề sau ảnh, đảm bảo hiển thị
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
