@@ -160,12 +160,13 @@ elif choice == "➕ Đăng ký xe mới":
         ho_ten_raw = st.text_input("Họ tên")
         bien_so_raw = st.text_input("Biển số xe")
     with col2:
-        chuc_vu = st.text_input("Chức vụ")
+        chuc_vu_raw = st.text_input("Chức vụ")
         so_dien_thoai = st.text_input("Số điện thoại")
         email = st.text_input("Email")
 
-    # 👉 Chuẩn hóa họ tên
+    # 👉 Chuẩn hóa họ tên và chức vụ
     ho_ten = " ".join(word.capitalize() for word in ho_ten_raw.strip().split())
+    chuc_vu = " ".join(word.capitalize() for word in chuc_vu_raw.strip().split())
 
     # 👉 Chuẩn hóa biển số
     import re
@@ -190,7 +191,7 @@ elif choice == "➕ Đăng ký xe mới":
         # 👉 Sinh mã thẻ
         filtered = df["Mã thẻ"].dropna()[df["Mã thẻ"].str.startswith(ma_don_vi)]
         if not filtered.empty:
-            numbers = filtered.str.extract(f"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int)
+            numbers = filtered.str.extract(f"{ma_don_vi}(\d{3})")[0].dropna().astype(int)
             next_number = max(numbers) + 1
         else:
             next_number = 1
@@ -199,6 +200,7 @@ elif choice == "➕ Đăng ký xe mới":
         st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
+        # 👉 Ghi vào Google Sheet
         if st.button("Đăng ký"):
             worksheet.append_row([
                 len(df) + 1,
