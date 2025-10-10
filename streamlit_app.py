@@ -174,8 +174,8 @@ elif choice == "➕ Đăng ký xe mới":
         st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
 
-        # 👉 Ghi dữ liệu
-        if st.button("Đăng ký"):
+        # 👉 Nút đăng ký
+        if st.button("📥 Đăng ký"):
             try:
                 sheet.append_row([
                     len(df) + 1,
