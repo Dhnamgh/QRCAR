@@ -55,14 +55,14 @@ st.markdown("""
             color: #004080;
             margin-top: 0.5rem;
         }
-        .banner-container {
-            text-align: center;
-            margin-bottom: 0.5rem;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='banner-container'><img src='ump_title.png' style='width:100%; height:auto;'></div>", unsafe_allow_html=True)
+# ✅ Dùng layout Streamlit để đảm bảo responsive
+col1, col2, col3 = st.columns([1, 6, 1])
+with col2:
+    st.image("ump_title.png", use_column_width=True)
+
 st.title("🚗 QR Car Management")
 
 # 👉 Xử lý tra cứu từ URL nếu có query_id
