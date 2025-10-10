@@ -87,6 +87,7 @@ menu = [
     "🗑️ Xóa xe",
     "📱 Mã QR xe",
     "📤 Xuất ra Excel",
+    "📊 Thống kê xe theo đơn vị"
 ]
 
 default_tab = "📱 Mã QR xe" if "id" in st.query_params else menu[0]
@@ -100,9 +101,19 @@ except Exception as e:
     st.stop()
 
 if choice == "📋 Xem danh sách":
-    st.subheader("Danh sách xe")
-    st.dataframe(df)
+    st.subheader("📋 Danh sách xe đã đăng ký")
 
+    # 👉 Chuẩn hóa biển số
+    def dinh_dang_bien_so(bs):
+        bs = re.sub(r"[^A-Z0-9]", "", bs.upper())
+        if len(bs) == 8:
+            return f"{bs[:3]}-{bs[3:6]}.{bs[6:]}"
+        return bs
+
+    df["Biển số"] = df["Biển số"].apply(dinh_dang_bien_so)
+
+    # 👉 Hiển thị bảng full màn hình
+    st.dataframe(df, use_container_width=True)
 elif choice == "🔍 Tìm kiếm xe":
     st.subheader("🔍 Tìm kiếm xe theo biển số")
     bien_so_input = st.text_input("Nhập biển số xe cần tìm")
@@ -168,8 +179,7 @@ elif choice == "➕ Đăng ký xe mới":
 
         st.markdown(f"🔐 **Mã thẻ tự sinh:** `{ma_the}`")
         st.markdown(f"🏢 **Mã đơn vị:** `{ma_don_vi}`")
-
-        # ✅ Nút đăng ký vẫn ở đây, không bị mất
+   
         if st.button("📥 Đăng ký"):
             try:
                 sheet.append_row([
@@ -323,6 +333,23 @@ elif choice == "📤 Xuất ra Excel":
         file_name="DanhSachXe.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+elif choice == "📊 Thống kê xe theo đơn vị":
+    st.subheader("📊 Thống kê số lượng xe theo đơn vị")
+
+    df = pd.DataFrame(sheet.get_all_records())
+
+    thong_ke = df.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+    thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
+
+    don_vi_chon = st.selectbox("Chọn đơn vị để xem chi tiết", ["Tất cả"] + thong_ke["Tên đơn vị"].tolist())
+
+    if don_vi_chon != "Tất cả":
+        df_don_vi = df[df["Tên đơn vị"] == don_vi_chon]
+        st.markdown(f"### 📋 Danh sách xe của đơn vị `{don_vi_chon}`")
+        st.dataframe(df_don_vi, use_container_width=True)
+
+    st.markdown("### 📈 Biểu đồ số lượng xe theo đơn vị")
+    st.bar_chart(thong_ke.set_index("Tên đơn vị"))
 # 👉 Nội dung chân trang
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
