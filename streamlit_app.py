@@ -152,9 +152,9 @@ don_vi_map = {
     "TT. GDYH": "GDY",        # Trung tâm GDYH
     "VPĐ": "VPD"              # VP Đoàn thể
 }
-    ten_don_vi = st.selectbox("Chọn đơn vị", list(don_vi_map.keys()))
-    ma_don_vi = don_vi_map[ten_don_vi]
-    col1, col2 = st.columns(2)
+   ten_don_vi = st.selectbox("Chọn đơn vị", list(don_vi_map.keys()))
+   ma_don_vi = don_vi_map[ten_don_vi]
+   col1, col2 = st.columns(2)
     with col1:
         ho_ten_raw = st.text_input("Họ tên")
         bien_so_raw = st.text_input("Biển số xe")
