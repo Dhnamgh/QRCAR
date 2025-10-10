@@ -41,7 +41,7 @@ if "google_service_account" not in st.secrets:
 
 try:
     creds_dict = dict(st.secrets["google_service_account"])
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\n", "\n").strip()
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
@@ -184,9 +184,10 @@ elif choice == "➕ Đăng ký xe mới":
         st.warning("⚠️ Vui lòng nhập đầy đủ thông tin.")
     else:
         filtered = df_current["Mã thẻ"].dropna()
-        filtered = filtered[filtered.astype(str).str.startswith(ma_don_vi)]
+        filtered = filtered.astype(str)
+        filtered = filtered[filtered.str.startswith(ma_don_vi)]
         next_number = (
-            filtered.astype(str).str.extract(fr"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int).max()
+            filtered.str.extract(fr"{ma_don_vi}(\d{{3}})")[0].dropna().astype(int).max()
             if not filtered.empty else 0
         ) + 1
         ma_the = f"{ma_don_vi}{next_number:03d}"
@@ -197,7 +198,7 @@ elif choice == "➕ Đăng ký xe mới":
         if st.button("📥 Đăng ký"):
             try:
                 sheet.append_row([
-                    len(df_current) + 1,
+                    int(len(df_current) + 1),
                     ho_ten,
                     bien_so,
                     ma_the,
@@ -227,32 +228,40 @@ elif choice == "✏️ Cập nhật xe":
         else:
             st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
             st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
-            index = ket_qua.index[0]
+            idx_np = ket_qua.index[0]
+            index = int(idx_np)  # <-- Cast to native int to avoid JSON serialization issues
             row = ket_qua.iloc[0]
             st.markdown("### 📝 Nhập thông tin mới để cập nhật")
             col1, col2 = st.columns(2)
             with col1:
-                ho_ten_moi = st.text_input("Họ tên", value=row["Họ tên"])
-                bien_so_moi = st.text_input("Biển số xe", value=row["Biển số"])
-                ten_don_vi_moi = st.text_input("Tên đơn vị", value=row["Tên đơn vị"])
-                ma_don_vi_moi = st.text_input("Mã đơn vị", value=row["Mã đơn vị"])
+                ho_ten_moi = st.text_input("Họ tên", value=str(row["Họ tên"]))
+                bien_so_moi = st.text_input("Biển số xe", value=str(row["Biển số"]))
+                ten_don_vi_moi = st.text_input("Tên đơn vị", value=str(row["Tên đơn vị"]))
+                ma_don_vi_moi = st.text_input("Mã đơn vị", value=str(row["Mã đơn vị"]))
             with col2:
-                chuc_vu_moi = st.text_input("Chức vụ", value=row["Chức vụ"])
-                so_dien_thoai_moi = st.text_input("Số điện thoại", value=row["Số điện thoại"])
-                email_moi = st.text_input("Email", value=row["Email"])
+                chuc_vu_moi = st.text_input("Chức vụ", value=str(row["Chức vụ"]))
+                so_dien_thoai_moi = st.text_input("Số điện thoại", value=str(row["Số điện thoại"]))
+                email_moi = st.text_input("Email", value=str(row["Email"]))
             if st.button("Cập nhật"):
                 try:
-                    sheet.update(f"A{index+2}:I{index+2}", [[
-                        row["STT"],
+                    stt_val = ""
+                    try:
+                        stt_val = int(row["STT"])
+                    except Exception:
+                        stt_val = str(row.get("STT", ""))
+
+                    payload = [
+                        stt_val,
                         ho_ten_moi,
                         bien_so_moi,
-                        row["Mã thẻ"],
+                        str(row["Mã thẻ"]),
                         ma_don_vi_moi,
                         ten_don_vi_moi,
                         chuc_vu_moi,
                         so_dien_thoai_moi,
                         email_moi
-                    ]])
+                    ]
+                    sheet.update(f"A{index+2}:I{index+2}", [payload])
                     st.success("✅ Đã cập nhật thông tin xe thành công!")
                     st.session_state.df = load_df()
                 except Exception as e:
@@ -274,11 +283,12 @@ elif choice == "🗑️ Xóa xe":
                 st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
                 st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-                index = ket_qua.index[0]
+                idx_np = ket_qua.index[0]
+                index = int(idx_np)  # <-- Cast to native int
                 row = ket_qua.iloc[0]
 
                 if st.button("Xác nhận xóa"):
-                    sheet.delete_rows(index + 2)
+                    sheet.delete_rows(int(index) + 2)  # ensure native int
                     st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
                     st.session_state.df = load_df()
 
@@ -417,7 +427,7 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         height=600
     )
 
-    # Đẩy biểu đồ sát trái bằng cột lệch (sửa indentation)
+    # Đẩy biểu đồ sát trái bằng cột lệch
     col = st.columns([0.1, 0.9])
     with col[1]:
         st.plotly_chart(fig, use_container_width=True)
