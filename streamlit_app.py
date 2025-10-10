@@ -334,8 +334,6 @@ elif choice == "📤 Xuất ra Excel":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 elif choice == "📊 Thống kê xe theo đơn vị":
-    st.subheader("📊 Thống kê số lượng xe theo đơn vị")
-
     df = pd.DataFrame(sheet.get_all_records())
 
     # 👉 Gom nhóm theo đơn vị
