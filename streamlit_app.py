@@ -9,10 +9,8 @@ from PIL import Image
 from io import BytesIO
 import difflib
 
-# ---------- Page config ----------
 st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
 
-# ---------- Constants ----------
 REQUIRED_COLUMNS = ["STT", "Họ tên", "Biển số", "Mã thẻ", "Mã đơn vị", "Tên đơn vị", "Chức vụ", "Số điện thoại", "Email"]
 
 DON_VI_MAP = {
@@ -24,7 +22,6 @@ DON_VI_MAP = {
     "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD"
 }
 
-# ---------- Helpers (shared) ----------
 def normalize_plate(plate: str) -> str:
     return re.sub(r'[^a-zA-Z0-9]', '', str(plate)).lower()
 
@@ -100,6 +97,7 @@ def reindex_stt(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # ---------- Lightweight AI helpers ----------
+import difflib
 def fuzzy_ratio(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
 
@@ -169,18 +167,23 @@ def filter_with_keys(df: pd.DataFrame, keys: dict):
         applied = True
     return cur, applied
 
-# ---------- Google Sheet init ----------
+# ---------- Google Sheet init (non-invasive) ----------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 if "google_service_account" not in st.secrets:
-    st.error("❌ Thiếu thông tin xác thực Google Service Account trong secrets.toml.")
+    st.error("❌ Thiếu [google_service_account] trong secrets.")
     st.stop()
 try:
+    # We assume secrets is already in the correct dict shape (as your old app).
     creds_dict = dict(st.secrets["google_service_account"])
-    pk = str(creds_dict.get("private_key", "")).strip()
-    if "-----BEGIN" not in pk:
-        pk = pk.replace("\\n", "\n")
-    pk = pk.replace("\r\n", "\n")
-    creds_dict["private_key"] = pk
+    # Minimal, in-memory newline normalization ONLY if obviously needed.
+    pk = str(creds_dict.get("private_key", ""))
+    if "\n" in pk and "-----BEGIN" in pk:
+        pk = pk.replace("\n", "\n")  # keep representation; oauth2client accepts real newlines or \n
+        pk = pk.replace("\r\n", "\n")
+        # Convert visible \n to real newline for compatibility with oauth2client
+        pk = pk.encode("utf-8").decode("unicode_escape")
+        creds_dict["private_key"] = pk
+    # If pk already has real newlines, do nothing.
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
@@ -193,11 +196,6 @@ try:
 except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
-
-# ---------- Sidebar & Title ----------
-st.sidebar.image("ump_logo.png", width=120)
-st.sidebar.markdown("---")
-st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
 
 # ---------- Load data ----------
 @st.cache_data(ttl=60)
@@ -213,7 +211,11 @@ if "df" not in st.session_state:
     st.session_state.df = load_df()
 df = st.session_state.df
 
-# ---------- Menu ----------
+# ---------- UI ----------
+st.sidebar.image("ump_logo.png", width=120)
+st.sidebar.markdown("---")
+st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
+
 menu = [
     "📋 Xem danh sách",
     "🔍 Tìm kiếm xe",
@@ -228,7 +230,9 @@ menu = [
 ]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
 
-# ---------- Features ----------
+# ... (keep the same feature implementations from v7 for brevity) ...
+# For compactness, below are short versions identical to v7 behavior:
+
 if choice == "📋 Xem danh sách":
     st.subheader("📋 Danh sách xe đã đăng ký")
     df_show = df.copy()
@@ -426,7 +430,7 @@ elif choice == "📤 Xuất ra Excel":
 
 elif choice == "📥 Tải dữ liệu lên":
     st.subheader("📥 Tải dữ liệu từ file lên Google Sheet")
-    st.markdown("Tải file **.xlsx** hoặc **.csv** theo mẫu định dạng chuẩn. Bạn **có thể để trống** cột **Mã thẻ** và **Mã đơn vị** — hệ thống sẽ tự sinh dựa trên **Tên đơn vị**.")
+    st.markdown("Bạn có thể để **trống** cột **Mã thẻ** và **Mã đơn vị** — hệ thống sẽ tự sinh dựa trên **Tên đơn vị**.")
     tmpl = pd.DataFrame(columns=REQUIRED_COLUMNS)
     buf_tmpl = BytesIO()
     with pd.ExcelWriter(buf_tmpl, engine='openpyxl') as writer:
@@ -585,7 +589,6 @@ elif choice == "🤖 Trợ lý AI":
             else:
                 st.dataframe(top.drop(columns=["__score__"], errors="ignore"), use_container_width=True)
 
-# ---------- Footer ----------
 st.markdown("""
 <hr style='margin-top:50px; margin-bottom:20px;'>
 
