@@ -167,28 +167,28 @@ def filter_with_keys(df: pd.DataFrame, keys: dict):
         applied = True
     return cur, applied
 
-# ---------- Google Sheet init (non-invasive) ----------
+# --- Khởi tạo Google Sheet (giữ nguyên secrets, chỉ sửa xuống dòng nếu cần) ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
 if "google_service_account" not in st.secrets:
     st.error("❌ Thiếu [google_service_account] trong secrets.")
     st.stop()
+
 try:
-    # We assume secrets is already in the correct dict shape (as your old app).
-    creds_dict = dict(st.secrets["google_service_account"])
-    # Minimal, in-memory newline normalization ONLY if obviously needed.
+    creds_dict = dict(st.secrets["google_service_account"])  # KHÔNG đổi cấu trúc JSON
     pk = str(creds_dict.get("private_key", ""))
-    if "\n" in pk and "-----BEGIN" in pk:
-        pk = pk.replace("\n", "\n")  # keep representation; oauth2client accepts real newlines or \n
-        pk = pk.replace("\r\n", "\n")
-        # Convert visible \n to real newline for compatibility with oauth2client
-        pk = pk.encode("utf-8").decode("unicode_escape")
+
+    # Nếu private_key có ký tự '\n' hiển thị mà chưa xuống dòng thật, chỉ sửa tại RAM
+    if ("-----BEGIN" in pk) and ("\\n" in pk) and ("\n" not in pk):
+        pk = pk.replace("\\r\\n", "\\n").replace("\\n", "\n")
         creds_dict["private_key"] = pk
-    # If pk already has real newlines, do nothing.
+
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
     st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
     st.stop()
+
 
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
 try:
