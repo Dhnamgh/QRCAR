@@ -1,10 +1,3 @@
-# streamlit_app.py  (v8: Login bắt buộc + QR guard + QR tích hợp các luồng)
-# - Không chỉnh secrets/JSON
-# - Bắt đăng nhập ngay từ đầu; sau khi đăng nhập, tất cả tab dùng bình thường
-# - Luồng quét QR (?id=...): bắt nhập mật khẩu, chỉ xem đúng 1 xe, ẩn toàn bộ tab
-# - Tạo QR tại: Đăng ký xe mới, Cập nhật xe (hiện ảnh + tải PNG)
-# - Tải dữ liệu lên: ghi xong sinh QR cho tất cả xe đã xử lý, nén ZIP để tải
-
 import streamlit as st
 import pandas as pd
 import urllib.parse
