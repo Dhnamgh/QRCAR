@@ -2,21 +2,6 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 import gspread
-import time, random
-
-def gs_retry(func, *args, max_retries=6, base=0.8, **kwargs):
-    for attempt in range(max_retries):
-        try:
-            return func(*args, **kwargs)
-        except gspread.exceptions.APIError as e:
-            code = getattr(getattr(e, "response", None), "status_code", None)
-            if code in (429, 500, 503):
-                sleep = base * (2 ** attempt) + random.uniform(0, 0.5)
-                time.sleep(sleep)
-                continue
-            raise
-    raise RuntimeError("Ghi Google Sheets thất bại sau khi retry nhiều lần")
-
 from oauth2client.service_account import ServiceAccountCredentials
 import qrcode
 import re
@@ -25,6 +10,151 @@ from io import BytesIO
 import difflib
 import zipfile
 import io
+
+# ==== BEGIN APPCAR PATCH HELPERS ====
+import re as _re_patch, unicodedata as _unicodedata_patch, time as _time_patch, random as _random_patch
+import pandas as _pd_patch
+
+def _canon_ap(a):
+    if a is None: return ""
+    s = str(a)
+    s = _unicodedata_patch.normalize("NFD", s)
+    s = "".join(ch for ch in s if _unicodedata_patch.category(ch) != "Mn")
+    s = s.lower()
+    s = _re_patch.sub(r"[^a-z0-9]+", "", s)
+    return s
+
+_AP_CANON_TO_STD = {
+    "bienso": "Biển số",
+    "biensoxe": "Biển số",
+    "licenseplate": "Biển số",
+    "plate": "Biển số",
+    "hoten": "Họ tên",
+    "ten": "Họ tên",
+    "hovaten": "Họ tên",
+    "fullname": "Họ tên",
+    "name": "Họ tên",
+    "sodienthoai": "Số điện thoại",
+    "dienthoai": "Số điện thoại",
+    "phone": "Số điện thoại",
+    "email": "Email",
+    "madonvi": "Mã đơn vị",
+    "tendonvi": "Tên đơn vị",
+    "chucvu": "Chức vụ",
+    "mathe": "Mã thẻ",
+    "ma_the": "Mã thẻ",
+}
+
+_AP_REQUIRED_COLUMNS = ["STT","Họ tên","Biển số","Mã thẻ","Mã đơn vị","Tên đơn vị","Chức vụ","Số điện thoại","Email"]
+
+def coerce_columns(df):
+    try:
+        if df is None or len(df.columns)==0: return df
+    except Exception:
+        return df
+    ren = {}
+    seen = set()
+    for c in list(df.columns):
+        k = _canon_ap(c)
+        std = _AP_CANON_TO_STD.get(k)
+        if std and std not in seen:
+            ren[c] = std
+            seen.add(std)
+    out = df.rename(columns=ren)
+    for col in _AP_REQUIRED_COLUMNS:
+        if col not in out.columns:
+            out[col] = ""
+    return out
+
+def safe_format_plate(x):
+    if _pd_patch.isna(x) or str(x).strip() == "":
+        return ""
+    try:
+        return dinh_dang_bien_so(str(x))
+    except Exception:
+        return str(x)
+
+_UNIT_PAD   = 0
+_CARD_PREFIX= "TH"
+_CARD_PAD   = 6
+
+def _slug_unit(name: str) -> str:
+    if not isinstance(name, str) or not name.strip():
+        return "DV"
+    words = _re_patch.findall(r"[A-Za-zÀ-ỹ0-9]+", name.strip(), flags=_re_patch.UNICODE)
+    if not words:
+        return "DV"
+    initials = "".join(w[0] for w in words).upper()
+    if len(initials) <= 1:
+        flat = _re_patch.sub(r"[^A-Za-z0-9]", "", name.upper())
+        return (flat or "DV")[:8]
+    return initials[:8]
+
+def _next_card_seed(existing_codes):
+    max_num = 0
+    if existing_codes is not None:
+        for v in _pd_patch.Series(existing_codes).dropna().astype(str):
+            m = _re_patch.match(rf"^{_re_patch.escape(_CARD_PREFIX)}(\d+)$", v.strip(), flags=_re_patch.IGNORECASE)
+            if m:
+                try:
+                    max_num = max(max_num, int(m.group(1)))
+                except: pass
+    return max_num
+
+def ensure_codes(df_up, df_cur):
+    df_up = coerce_columns(df_up)
+df_up = coerce_columns(df_up)
+    df_cur = coerce_columns(df_cur) if df_cur is not None else _pd_patch.DataFrame(columns=_AP_REQUIRED_COLUMNS)
+df_cur = coerce_columns(df_cur)
+    unit_map = {}
+    if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
+        for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
+            name = str(r["Tên đơn vị"]).strip().upper()
+            code = str(r["Mã đơn vị"]).strip().upper()
+            if name and code:
+                unit_map[name] = code
+    used_unit = set(df_cur["Mã đơn vị"].dropna().astype(str).str.upper()) if "Mã đơn vị" in df_cur.columns else set()
+
+    def _alloc_unit(ten: str) -> str:
+        if not ten: return "DV"
+        key = ten.strip().upper()
+        if key in unit_map: return unit_map[key]
+        base = _slug_unit(ten)
+        cand = base
+        k = 2
+        while cand.upper() in used_unit:
+            cand = f"{base}{str(k).zfill(_UNIT_PAD) if _UNIT_PAD>0 else k}"; k += 1
+        used_unit.add(cand.upper())
+        unit_map[key] = cand
+        return cand
+
+    start_num = _next_card_seed(df_cur.get("Mã thẻ") if "Mã thẻ" in df_cur.columns else _pd_patch.Series(dtype=str))
+    cur_num = start_num
+    def _alloc_card() -> str:
+        nonlocal cur_num
+        cur_num += 1
+        return f"{_CARD_PREFIX}{str(cur_num).zfill(_CARD_PAD)}"
+
+    for i, r in df_up.iterrows():
+        if not str(r.get("Mã đơn vị","")).strip():
+            df_up.at[i, "Mã đơn vị"] = _alloc_unit(str(r.get("Tên đơn vị","")).strip())
+        if not str(r.get("Mã thẻ","")).strip():
+            df_up.at[i, "Mã thẻ"] = _alloc_card()
+    return df_up
+
+def gs_retry(func, *args, max_retries=6, base=0.8, **kwargs):
+    for i in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (429,500,503):
+                _time_patch.sleep(base*(2**i) + _random_patch.uniform(0,0.5))
+                continue
+            raise
+    raise RuntimeError("Google Sheets write failed after multiple retries")
+# ==== END APPCAR PATCH HELPERS ====
+
 
 # ---------- Page config ----------
 st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
@@ -309,7 +439,8 @@ choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
 if choice == "📋 Xem danh sách":
     st.subheader("📋 Danh sách xe đã đăng ký")
     df_show = df.copy()
-    df_show["Biển số"] = df_show["Biển số"].apply(dinh_dang_bien_so)
+    df_show = coerce_columns(df_show)
+df_show["Biển số"] = df_show["Biển số"].apply(safe_format_plate)
     st.dataframe(df_show, use_container_width=True)
 
 elif choice == "🔍 Tìm kiếm xe":
@@ -519,6 +650,7 @@ elif choice == "📥 Tải dữ liệu lên":
                 else:
                     if mode == "Thêm (append)":
                         df_to_write = fill_missing_codes(df_up)
+df_to_write = ensure_codes(df_to_write, df_cur)
                         values = to_native_ll(df_to_write)
                         for row_vals in values:
                             gs_retry(sheet.append_row, row_vals)
@@ -532,7 +664,7 @@ elif choice == "📥 Tải dữ liệu lên":
 
                     elif mode == "Thay thế toàn bộ (replace all)":
                         df_to_write = fill_missing_codes(df_up)
-                        gs_retry(sheet.clear)
+                        sheet.clear()
                         gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                         values = to_native_ll(df_to_write)
                         if values:
@@ -583,7 +715,7 @@ elif choice == "📥 Tải dữ liệu lên":
                         try:
                             df_all = load_df()
                             df_all = reindex_stt(df_all)
-                            gs_retry(sheet.clear)
+                            sheet.clear()
                             gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                             values_all = to_native_ll(df_all)
                             if values_all:
