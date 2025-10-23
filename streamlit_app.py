@@ -104,7 +104,7 @@ def _next_card_seed(existing_codes):
 def ensure_codes(df_up, df_cur):
     df_up = coerce_columns(df_up)
 df_up = coerce_columns(df_up)
-    df_cur = coerce_columns(df_cur) if df_cur is not None else _pd_patch.DataFrame(columns=_AP_REQUIRED_COLUMNS)
+df_cur = coerce_columns(df_cur) if df_cur is not None else _pd_patch.DataFrame(columns=_AP_REQUIRED_COLUMNS)
 df_cur = coerce_columns(df_cur)
     unit_map = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
