@@ -591,7 +591,8 @@ if choice == "📋 Xem danh sách":
             st.warning("Không tìm thấy cột 'Biển số' trong dữ liệu hiển thị.")
         except Exception:
             pass
-    st.dataframe(df_show, use_container_width=True)
+    st.dataframe(df_show, hide_index=True)
+
 
 elif choice == "🔍 Tìm kiếm xe":
     st.subheader("🔍 Tìm kiếm xe theo biển số (hỗ trợ gần đúng)")
