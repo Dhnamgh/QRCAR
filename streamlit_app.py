@@ -70,24 +70,40 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
     df_up = coerce_columns(df_up).dropna(how="all").reset_index(drop=True)
     df_cur = coerce_columns(df_cur if df_cur is not None else pd.DataFrame(columns=REQ))
 
+    # ---- robust blank check: coi "nan", "None", "null", "na" ... là trống ----
+    def _is_blank(v) -> bool:
+        if v is None:
+            return True
+        s = str(v).strip()
+        if s == "":
+            return True
+        s_low = s.lower()
+        return s_low in {"nan", "none", "null", "na", "n/a", "-", "_"}
+
     # map Tên đơn vị -> Mã đơn vị từ dữ liệu hiện có
     unit_map = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
         for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
             name = str(r["Tên đơn vị"]).strip().upper()
             code = str(r["Mã đơn vị"]).strip().upper()
-            if name and code: unit_map[name] = code
+            if name and code:
+                unit_map[name] = code
+
     used_units = set(df_cur.get("Mã đơn vị", pd.Series(dtype=str)).dropna().astype(str).str.upper())
 
     def alloc_unit(ten: str) -> str:
-        if not ten: return "DV"
-        key = ten.strip().upper()
-        if key in unit_map: return unit_map[key]
-        base, cand, k = _slug_unit(ten), None, 2
-        cand = base
+        if _is_blank(ten):
+            return "DV"
+        key = str(ten).strip().upper()
+        if key in unit_map:
+            return unit_map[key]
+        base = _slug_unit(str(ten))
+        cand, k = base, 2
         while cand.upper() in used_units:
-            cand = f"{base}{k}"; k += 1
-        used_units.add(cand.upper()); unit_map[key] = cand
+            cand = f"{base}{k}"
+            k += 1
+        used_units.add(cand.upper())
+        unit_map[key] = cand
         return cand
 
     cur_num = _next_card_seed(df_cur.get("Mã thẻ", pd.Series(dtype=str)))
@@ -96,12 +112,16 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
         cur_num += 1
         return f"{CARD_PREFIX}{str(cur_num).zfill(CARD_PAD)}"
 
+    # ---- fill codes for every row; treat 'nan'/'None' etc. as empty ----
     for i, r in df_up.iterrows():
-        if not str(r.get("Mã đơn vị","")).strip():
-            df_up.at[i, "Mã đơn vị"] = alloc_unit(str(r.get("Tên đơn vị","")).strip())
-        if not str(r.get("Mã thẻ","")).strip():
+        ten_dv = r.get("Tên đơn vị", "")
+        if _is_blank(r.get("Mã đơn vị", "")):
+            df_up.at[i, "Mã đơn vị"] = alloc_unit(ten_dv)
+        if _is_blank(r.get("Mã thẻ", "")):
             df_up.at[i, "Mã thẻ"] = alloc_card()
+
     return df_up
+
 
 def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
     for i in range(max_retries):
