@@ -70,57 +70,98 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
     df_up = coerce_columns(df_up).dropna(how="all").reset_index(drop=True)
     df_cur = coerce_columns(df_cur if df_cur is not None else pd.DataFrame(columns=REQ))
 
-    # ---- robust blank check: coi "nan", "None", "null", "na" ... là trống ----
-    def _is_blank(v) -> bool:
-        if v is None:
-            return True
-        s = str(v).strip()
-        if s == "":
-            return True
-        s_low = s.lower()
-        return s_low in {"nan", "none", "null", "na", "n/a", "-", "_"}
+    import unicodedata, re as _re
 
-    # map Tên đơn vị -> Mã đơn vị từ dữ liệu hiện có
-    unit_map = {}
+    def _canon_name(s):
+        s = "" if s is None else str(s)
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+        s = _re.sub(r"\s+", " ", s).strip().lower()
+        return s
+
+    def _is_blank(v) -> bool:
+        if v is None: return True
+        s = str(v).strip()
+        if s == "": return True
+        return s.lower() in {"nan", "none", "null", "na", "n/a", "-", "_"}
+
+    # 1) Map tên -> mã đơn vị
+    #    a) Ưu tiên DON_VI_MAP (bạn đã có sẵn biến này trong code)
+    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }
+
+    #    b) Map đang có trên sheet (để tái dùng mã nếu trùng tên)
+    unit_map_sheet = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
         for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
             name = str(r["Tên đơn vị"]).strip().upper()
             code = str(r["Mã đơn vị"]).strip().upper()
             if name and code:
-                unit_map[name] = code
+                unit_map_sheet[name] = code
 
     used_units = set(df_cur.get("Mã đơn vị", pd.Series(dtype=str)).dropna().astype(str).str.upper())
 
-    def alloc_unit(ten: str) -> str:
-        if _is_blank(ten):
-            return "DV"
-        key = str(ten).strip().upper()
-        if key in unit_map:
-            return unit_map[key]
-        base = _slug_unit(str(ten))
-        cand, k = base, 2
+    def _slug_unit(name: str) -> str:
+        if not isinstance(name, str) or not name.strip(): return "DV"
+        words = _re.findall(r"[A-Za-zÀ-ỹ0-9]+", name.strip(), flags=_re.UNICODE)
+        if not words: return "DV"
+        initials = "".join(w[0] for w in words).upper()
+        if len(initials) <= 1:
+            flat = _re.sub(r"[^A-Za-z0-9]", "", name.upper())
+            return (flat or "DV")[:8]
+        return initials[:8]
+
+    def resolve_unit_code(ten):
+        # Ưu tiên DON_VI_MAP (khớp bỏ dấu/hoa-thường)
+        if not _is_blank(ten):
+            ckey = _canon_name(ten)
+            if ckey in canon_from_const:
+                return canon_from_const[ckey]
+        # Sau đó dùng map có sẵn trên sheet
+        key_up = ("" if _is_blank(ten) else str(ten).strip().upper())
+        if key_up and key_up in unit_map_sheet:
+            return unit_map_sheet[key_up]
+        # Cuối cùng mới rơi về slug (để tránh trùng)
+        base, cand, k = _slug_unit("" if _is_blank(ten) else str(ten)), None, 2
+        cand = base
         while cand.upper() in used_units:
-            cand = f"{base}{k}"
-            k += 1
+            cand = f"{base}{k}"; k += 1
         used_units.add(cand.upper())
-        unit_map[key] = cand
         return cand
 
-    cur_num = _next_card_seed(df_cur.get("Mã thẻ", pd.Series(dtype=str)))
-    def alloc_card() -> str:
-        nonlocal cur_num
-        cur_num += 1
-        return f"{CARD_PREFIX}{str(cur_num).zfill(CARD_PAD)}"
+    # 2) Seed số thứ tự mã thẻ theo từng đơn vị từ dữ liệu hiện có
+    CARD_PAD = 3  # ví dụ TRY001..TRY010
+    per_unit_seed = {}  # { 'TRY': 10, 'KHB': 3, ... }
+    if not df_cur.empty and all(c in df_cur.columns for c in ["Mã đơn vị","Mã thẻ"]):
+        for uc, grp in df_cur.groupby(df_cur["Mã đơn vị"].astype(str).str.upper(), dropna=True):
+            mx = 0
+            for v in grp["Mã thẻ"].dropna().astype(str):
+                m = _re.match(rf"^{_re.escape(uc)}(\d+)$", v.strip(), flags=_re.IGNORECASE)
+                if m:
+                    try:
+                        mx = max(mx, int(m.group(1)))
+                    except:
+                        pass
+            per_unit_seed[uc] = mx
 
-    # ---- fill codes for every row; treat 'nan'/'None' etc. as empty ----
+    # 3) Gán Mã đơn vị + Mã thẻ
     for i, r in df_up.iterrows():
         ten_dv = r.get("Tên đơn vị", "")
-        if _is_blank(r.get("Mã đơn vị", "")):
-            df_up.at[i, "Mã đơn vị"] = alloc_unit(ten_dv)
-        if _is_blank(r.get("Mã thẻ", "")):
-            df_up.at[i, "Mã thẻ"] = alloc_card()
+        ma_dv  = r.get("Mã đơn vị", "")
+
+        if _is_blank(ma_dv):
+            ma_dv = resolve_unit_code(ten_dv)
+            df_up.at[i, "Mã đơn vị"] = ma_dv
+
+        ma_the = r.get("Mã thẻ", "")
+        if _is_blank(ma_the):
+            uc = str(ma_dv).strip().upper()
+            if uc not in per_unit_seed:
+                per_unit_seed[uc] = 0
+            per_unit_seed[uc] += 1
+            df_up.at[i, "Mã thẻ"] = f"{uc}{str(per_unit_seed[uc]).zfill(CARD_PAD)}"
 
     return df_up
+
 
 
 def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
