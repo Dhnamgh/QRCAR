@@ -2,19 +2,9 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import qrcode
-import re
-from PIL import Image
-from io import BytesIO
-import difflib
-import zipfile
-import io
-
-# ---------- Quota-friendly retry helper ----------
 import time, random
+
 def gs_retry(func, *args, max_retries=6, base=0.8, **kwargs):
-    import gspread
     for attempt in range(max_retries):
         try:
             return func(*args, **kwargs)
@@ -27,6 +17,14 @@ def gs_retry(func, *args, max_retries=6, base=0.8, **kwargs):
             raise
     raise RuntimeError("Ghi Google Sheets thất bại sau khi retry nhiều lần")
 
+from oauth2client.service_account import ServiceAccountCredentials
+import qrcode
+import re
+from PIL import Image
+from io import BytesIO
+import difflib
+import zipfile
+import io
 
 # ---------- Page config ----------
 st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
@@ -466,7 +464,7 @@ elif choice == "🗑️ Xóa xe":
                 index = int(idx_np)
                 row = ket_qua.iloc[0]
                 if st.button("Xác nhận xóa"):
-                    gs_retry(sheet.delete_rows, int(index) + 2)
+                    sheet.delete_rows(int(index) + 2)
                     st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
                     st.session_state.df = load_df()
         except Exception as e:
@@ -521,13 +519,10 @@ elif choice == "📥 Tải dữ liệu lên":
                 else:
                     if mode == "Thêm (append)":
                         df_to_write = fill_missing_codes(df_up)
-                        
-values = to_native_ll(df_to_write)
-if values:
-    start_row = len(df_cur) + 2
-    end_row = start_row + len(values) - 1
-    gs_retry(sheet.update, f"A{start_row}:I{end_row}", values)
-# tạo QR cho toàn bộ df_to_write
+                        values = to_native_ll(df_to_write)
+                        for row_vals in values:
+                            gs_retry(sheet.append_row, row_vals)
+                        # tạo QR cho toàn bộ df_to_write
                         for _, r in df_to_write.iterrows():
                             norm = normalize_plate(r["Biển số"])
                             link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
@@ -537,7 +532,7 @@ if values:
 
                     elif mode == "Thay thế toàn bộ (replace all)":
                         df_to_write = fill_missing_codes(df_up)
-                        gs_retry(sheet.clear, )
+                        gs_retry(sheet.clear)
                         gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                         values = to_native_ll(df_to_write)
                         if values:
@@ -554,59 +549,41 @@ if values:
                         df_up2 = fill_missing_codes(df_up)
                         df_cur["__norm"] = df_cur["Biển số"].astype(str).apply(normalize_plate)
                         df_up2["__norm"] = df_up2["Biển số"].astype(str).apply(normalize_plate)
-                        
-updated, inserted = 0, 0
-updates_payload = []
-append_rows = []
-
-for _, r in df_up2.iterrows():
-    norm = r["__norm"]
-    match = df_cur[df_cur["__norm"] == norm]
-    payload = [r.get(c, "") for c in REQUIRED_COLUMNS]
-    norm_payload = []
-    for x in payload:
-        if pd.isna(x):
-            norm_payload.append("")
-        elif isinstance(x, (int, float)):
-            if isinstance(x, float) and x.is_integer():
-                norm_payload.append(int(x))
-            else:
-                norm_payload.append(float(x) if isinstance(x, float) else int(x))
-        else:
-            norm_payload.append(str(x))
-    if not match.empty:
-        idx = int(match.index[0])
-        updates_payload.append({"range": f"A{idx+2}:I{idx+2}", "values": [norm_payload]})
-        updated += 1
-    else:
-        append_rows.append(norm_payload)
-        inserted += 1
-
-    # QR cho từng xe đã xử lý
-    link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
-    png = make_qr_bytes(link)
-    qr_images.append((f"QR_{r['Biển số']}.png", png))
-
-# Thực thi các UPDATE theo batch
-if updates_payload:
-    for i in range(0, len(updates_payload), 100):
-        chunk = updates_payload[i:i+100]
-        gs_retry(sheet.batch_update, chunk)
-
-# APPEND block
-if append_rows:
-    start_row = len(df_cur) + 2
-    end_row = start_row + len(append_rows) - 1
-    gs_retry(sheet.update, f"A{start_row}:I{end_row}", append_rows)
-
-st.success(f"✅ Upsert xong: cập nhật {updated} • thêm mới {inserted}.")
+                        updated, inserted = 0, 0
+                        for _, r in df_up2.iterrows():
+                            norm = r["__norm"]
+                            match = df_cur[df_cur["__norm"] == norm]
+                            payload = [r.get(c, "") for c in REQUIRED_COLUMNS]
+                            norm_payload = []
+                            for x in payload:
+                                if pd.isna(x):
+                                    norm_payload.append("")
+                                elif isinstance(x, (int, float)):
+                                    if isinstance(x, float) and x.is_integer():
+                                        norm_payload.append(int(x))
+                                    else:
+                                        norm_payload.append(float(x) if isinstance(x, float) else int(x))
+                                else:
+                                    norm_payload.append(str(x))
+                            if not match.empty:
+                                idx = int(match.index[0])
+                                gs_retry(sheet.update, f"A{idx+2}:I{idx+2}", [norm_payload])
+                                updated += 1
+                            else:
+                                gs_retry(sheet.append_row, norm_payload)
+                                inserted += 1
+                            # QR cho từng xe đã xử lý
+                            link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                            png = make_qr_bytes(link)
+                            qr_images.append((f"QR_{r['Biển số']}.png", png))
+                        st.success(f"✅ Upsert xong: cập nhật {updated} • thêm mới {inserted}.")
 
                     # Đánh lại STT nếu chọn
                     if not dry_run and auto_stt:
                         try:
                             df_all = load_df()
                             df_all = reindex_stt(df_all)
-                            gs_retry(sheet.clear, )
+                            gs_retry(sheet.clear)
                             gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                             values_all = to_native_ll(df_all)
                             if values_all:
@@ -700,7 +677,7 @@ elif choice == "📊 Thống kê xe theo đơn vị":
     st.dataframe(thong_ke_display, use_container_width=True)
 
 elif choice == "🤖 Trợ lý AI":
-    st.subheader("🤖 Trợ lý AI")
+    st.subheader("🤖 Trợ lý AI (AI nhẹ, không dùng API)")
     q = st.text_input("Gõ câu tự nhiên: ví dụ 'xe của Trường Y tên Hùng', '59A1', 'email @ump.edu.vn', '0912345678'…")
     if q:
         keys = simple_query_parser(q)
