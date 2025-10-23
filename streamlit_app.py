@@ -10,6 +10,126 @@ from io import BytesIO
 import difflib
 import zipfile
 import io
+# ==== DROP-IN: bulk upload fixed (no UI changes) ====
+import re, time, random
+import pandas as pd
+
+END_COL = "I"  # nếu sheet của bạn có nhiều/ít cột hơn, đổi chữ cái cột cuối
+
+def _canon(s):
+    import unicodedata
+    s = "" if s is None else str(s)
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    s = re.sub(r"[^A-Za-z0-9]+", "", s).lower()
+    return s
+
+_CANON2STD = {
+    "stt":"STT","hoten":"Họ tên","name":"Họ tên","hovaten":"Họ tên","ten":"Họ tên",
+    "bienso":"Biển số","licenseplate":"Biển số","plate":"Biển số","biensoxe":"Biển số",
+    "mathe":"Mã thẻ","ma_the":"Mã thẻ",
+    "madonvi":"Mã đơn vị","tendonvi":"Tên đơn vị",
+    "chucvu":"Chức vụ","sodienthoai":"Số điện thoại","dienthoai":"Số điện thoại","phone":"Số điện thoại",
+    "email":"Email",
+}
+REQ = ["STT","Họ tên","Biển số","Mã thẻ","Mã đơn vị","Tên đơn vị","Chức vụ","Số điện thoại","Email"]
+
+def coerce_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty: return df
+    ren, seen = {}, set()
+    for c in df.columns:
+        std = _CANON2STD.get(_canon(c))
+        if std and std not in seen:
+            ren[c] = std; seen.add(std)
+    out = df.rename(columns=ren).copy()
+    for c in REQ:
+        if c not in out.columns: out[c] = ""
+    return out
+
+CARD_PREFIX, CARD_PAD = "TH", 6
+def _slug_unit(name: str) -> str:
+    if not isinstance(name, str) or not name.strip(): return "DV"
+    words = re.findall(r"[A-Za-zÀ-ỹ0-9]+", name.strip(), flags=re.UNICODE)
+    if not words: return "DV"
+    initials = "".join(w[0] for w in words).upper()
+    if len(initials) <= 1:
+        flat = re.sub(r"[^A-Za-z0-9]", "", name.upper())
+        return (flat or "DV")[:8]
+    return initials[:8]
+
+def _next_card_seed(series: pd.Series) -> int:
+    mx = 0
+    for v in (series or pd.Series(dtype=str)).dropna().astype(str):
+        m = re.match(rf"^{re.escape(CARD_PREFIX)}(\d+)$", v.strip(), flags=re.IGNORECASE)
+        if m:
+            try: mx = max(mx, int(m.group(1)))
+            except: pass
+    return mx
+
+def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
+    df_up = coerce_columns(df_up).dropna(how="all").reset_index(drop=True)
+    df_cur = coerce_columns(df_cur if df_cur is not None else pd.DataFrame(columns=REQ))
+
+    # map Tên đơn vị -> Mã đơn vị từ dữ liệu hiện có
+    unit_map = {}
+    if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
+        for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
+            name = str(r["Tên đơn vị"]).strip().upper()
+            code = str(r["Mã đơn vị"]).strip().upper()
+            if name and code: unit_map[name] = code
+    used_units = set(df_cur.get("Mã đơn vị", pd.Series(dtype=str)).dropna().astype(str).str.upper())
+
+    def alloc_unit(ten: str) -> str:
+        if not ten: return "DV"
+        key = ten.strip().upper()
+        if key in unit_map: return unit_map[key]
+        base, cand, k = _slug_unit(ten), None, 2
+        cand = base
+        while cand.upper() in used_units:
+            cand = f"{base}{k}"; k += 1
+        used_units.add(cand.upper()); unit_map[key] = cand
+        return cand
+
+    cur_num = _next_card_seed(df_cur.get("Mã thẻ", pd.Series(dtype=str)))
+    def alloc_card() -> str:
+        nonlocal cur_num
+        cur_num += 1
+        return f"{CARD_PREFIX}{str(cur_num).zfill(CARD_PAD)}"
+
+    for i, r in df_up.iterrows():
+        if not str(r.get("Mã đơn vị","")).strip():
+            df_up.at[i, "Mã đơn vị"] = alloc_unit(str(r.get("Tên đơn vị","")).strip())
+        if not str(r.get("Mã thẻ","")).strip():
+            df_up.at[i, "Mã thẻ"] = alloc_card()
+    return df_up
+
+def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
+    for i in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (429,500,503):
+                time.sleep(base*(2**i) + random.uniform(0,0.5))
+                continue
+            raise
+    raise RuntimeError("Google Sheets write failed after multiple retries")
+
+def write_bulk(sheet, df_cur: pd.DataFrame, df_new: pd.DataFrame, chunk_rows=200, pause=0.5):
+    """Ghi theo block để tránh quota; tự sinh mã trước khi ghi."""
+    df_cur = coerce_columns(df_cur)
+    df_new = ensure_codes_all(df_new, df_cur)
+    values = df_new.fillna("").astype(object).values.tolist()
+    start = len(df_cur) + 2
+    written = 0
+    for i in range(0, len(values), chunk_rows):
+        block = values[i:i+chunk_rows]
+        rng = f"A{start+i}:{END_COL}{start+i+len(block)-1}"
+        gs_retry(sheet.update, rng, block)
+        written += len(block)
+        time.sleep(pause)
+    return written
+# ==== /DROP-IN ====
 
 # ---------- Page config ----------
 
@@ -661,9 +781,9 @@ elif choice == "📥 Tải dữ liệu lên":
                     if mode == "Thêm (append)":
                         df_to_write = fill_missing_codes(df_up)
                         df_to_write = ensure_codes(df_to_write, df_cur)
-                        values = to_native_ll(df_to_write)
-                        for row_vals in values:
-                            gs_retry(sheet.append_row, row_vals)
+                        rows = write_bulk(sheet, df_cur, df_up)   # ghi theo lô, tự sinh mã, chống quota
+                        st.success(f"✅ Đã thêm {rows} dòng.")
+
                         # tạo QR cho toàn bộ df_to_write
                         for _, r in df_to_write.iterrows():
                             norm = normalize_plate(r["Biển số"])
