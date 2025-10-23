@@ -11,7 +11,10 @@ import difflib
 import zipfile
 import io
 
-# ==== BEGIN APPCAR PATCH HELPERS ====
+# ---------- Page config ----------
+
+
+# ==== BEGIN APPCAR PATCH HELPERS (no-indent) ====
 import re as _re_patch, unicodedata as _unicodedata_patch, time as _time_patch, random as _random_patch
 import pandas as _pd_patch
 
@@ -49,7 +52,8 @@ _AP_REQUIRED_COLUMNS = ["STT","Họ tên","Biển số","Mã thẻ","Mã đơn v
 
 def coerce_columns(df):
     try:
-        if df is None or len(df.columns)==0: return df
+        if df is None or getattr(df, "empty", False):
+            return df
     except Exception:
         return df
     ren = {}
@@ -92,22 +96,27 @@ def _slug_unit(name: str) -> str:
 
 def _next_card_seed(existing_codes):
     max_num = 0
-    if existing_codes is not None:
-        for v in _pd_patch.Series(existing_codes).dropna().astype(str):
-            m = _re_patch.match(rf"^{_re_patch.escape(_CARD_PREFIX)}(\d+)$", v.strip(), flags=_re_patch.IGNORECASE)
-            if m:
-                try:
-                    max_num = max(max_num, int(m.group(1)))
-                except: pass
+    try:
+        it = _pd_patch.Series(existing_codes).dropna().astype(str)
+    except Exception:
+        it = []
+    for v in it:
+        m = _re_patch.match(rf"^{_re_patch.escape(_CARD_PREFIX)}(\d+)$", v.strip(), flags=_re_patch.IGNORECASE)
+        if m:
+            try:
+                max_num = max(max_num, int(m.group(1)))
+            except:
+                pass
     return max_num
 
 def ensure_codes(df_up, df_cur):
     df_up = coerce_columns(df_up)
-df_up = coerce_columns(df_up)
-df_cur = coerce_columns(df_cur) if df_cur is not None else _pd_patch.DataFrame(columns=_AP_REQUIRED_COLUMNS)
-df_cur = coerce_columns(df_cur)
+    df_up = coerce_columns(df_up)
+    df_up = ensure_codes(df_up, df_cur)
+    df_cur = coerce_columns(df_cur) if df_cur is not None else _pd_patch.DataFrame(columns=_AP_REQUIRED_COLUMNS)
+    df_cur = coerce_columns(df_cur)
     unit_map = {}
-    if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
+    if not getattr(df_cur, "empty", True) and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
         for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
             name = str(r["Tên đơn vị"]).strip().upper()
             code = str(r["Mã đơn vị"]).strip().upper()
@@ -123,7 +132,7 @@ df_cur = coerce_columns(df_cur)
         cand = base
         k = 2
         while cand.upper() in used_unit:
-            cand = f"{base}{str(k).zfill(_UNIT_PAD) if _UNIT_PAD>0 else k}"; k += 1
+            cand = f"{base}{(str(k).zfill(_UNIT_PAD)) if _UNIT_PAD>0 else k}"; k += 1
         used_unit.add(cand.upper())
         unit_map[key] = cand
         return cand
@@ -156,7 +165,6 @@ def gs_retry(func, *args, max_retries=6, base=0.8, **kwargs):
 # ==== END APPCAR PATCH HELPERS ====
 
 
-# ---------- Page config ----------
 st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
 
 # ---------- Constants ----------
@@ -440,7 +448,7 @@ if choice == "📋 Xem danh sách":
     st.subheader("📋 Danh sách xe đã đăng ký")
     df_show = df.copy()
     df_show = coerce_columns(df_show)
-df_show["Biển số"] = df_show["Biển số"].apply(safe_format_plate)
+    df_show["Biển số"] = df_show["Biển số"].apply(safe_format_plate)
     st.dataframe(df_show, use_container_width=True)
 
 elif choice == "🔍 Tìm kiếm xe":
@@ -650,7 +658,6 @@ elif choice == "📥 Tải dữ liệu lên":
                 else:
                     if mode == "Thêm (append)":
                         df_to_write = fill_missing_codes(df_up)
-df_to_write = ensure_codes(df_to_write, df_cur)
                         values = to_native_ll(df_to_write)
                         for row_vals in values:
                             gs_retry(sheet.append_row, row_vals)
