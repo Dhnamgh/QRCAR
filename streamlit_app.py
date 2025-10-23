@@ -86,10 +86,10 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
         return s.lower() in {"nan", "none", "null", "na", "n/a", "-", "_"}
 
     # 1) Map tên -> mã đơn vị
-    #    a) Ưu tiên DON_VI_MAP (bạn đã có sẵn biến này trong code)
-    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }
+    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }  # bảng quy ước chính
+    unit_alias = UNIT_ALIASES  # biến thể thường gặp -> tên chuẩn trong DON_VI_MAP
 
-    #    b) Map đang có trên sheet (để tái dùng mã nếu trùng tên)
+    # map hiện có trên sheet
     unit_map_sheet = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
         for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
@@ -111,43 +111,46 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
         return initials[:8]
 
     def resolve_unit_code(ten):
-        # Ưu tiên DON_VI_MAP (khớp bỏ dấu/hoa-thường)
-        if not _is_blank(ten):
-            ckey = _canon_name(ten)
-            if ckey in canon_from_const:
-                return canon_from_const[ckey]
-        # Sau đó dùng map có sẵn trên sheet
-        key_up = ("" if _is_blank(ten) else str(ten).strip().upper())
-        if key_up and key_up in unit_map_sheet:
+        if _is_blank(ten):
+            base = _slug_unit("")
+            return base
+        # alias -> tên chuẩn
+        ckey = _canon_name(ten)
+        if ckey in unit_alias:
+            std_name = unit_alias[ckey]
+            return DON_VI_MAP.get(std_name, _slug_unit(std_name))
+        # tra trực tiếp DON_VI_MAP (bỏ dấu/hoa-thường)
+        if ckey in canon_from_const:
+            return canon_from_const[ckey]
+        # tra map đã có trên sheet
+        key_up = str(ten).strip().upper()
+        if key_up in unit_map_sheet:
             return unit_map_sheet[key_up]
-        # Cuối cùng mới rơi về slug (để tránh trùng)
-        base, cand, k = _slug_unit("" if _is_blank(ten) else str(ten)), None, 2
+        # fallback
+        base, cand, k = _slug_unit(str(ten)), None, 2
         cand = base
         while cand.upper() in used_units:
             cand = f"{base}{k}"; k += 1
         used_units.add(cand.upper())
         return cand
 
-    # 2) Seed số thứ tự mã thẻ theo từng đơn vị từ dữ liệu hiện có
-    CARD_PAD = 3  # ví dụ TRY001..TRY010
-    per_unit_seed = {}  # { 'TRY': 10, 'KHB': 3, ... }
+    # 2) Seed số thứ tự mã thẻ theo từng đơn vị (KHB001..., TRY001..., nối tiếp)
+    CARD_PAD = 3
+    per_unit_seed = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Mã đơn vị","Mã thẻ"]):
         for uc, grp in df_cur.groupby(df_cur["Mã đơn vị"].astype(str).str.upper(), dropna=True):
             mx = 0
             for v in grp["Mã thẻ"].dropna().astype(str):
                 m = _re.match(rf"^{_re.escape(uc)}(\d+)$", v.strip(), flags=_re.IGNORECASE)
                 if m:
-                    try:
-                        mx = max(mx, int(m.group(1)))
-                    except:
-                        pass
+                    try: mx = max(mx, int(m.group(1)))
+                    except: pass
             per_unit_seed[uc] = mx
 
     # 3) Gán Mã đơn vị + Mã thẻ
     for i, r in df_up.iterrows():
         ten_dv = r.get("Tên đơn vị", "")
         ma_dv  = r.get("Mã đơn vị", "")
-
         if _is_blank(ma_dv):
             ma_dv = resolve_unit_code(ten_dv)
             df_up.at[i, "Mã đơn vị"] = ma_dv
@@ -161,6 +164,7 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
             df_up.at[i, "Mã thẻ"] = f"{uc}{str(per_unit_seed[uc]).zfill(CARD_PAD)}"
 
     return df_up
+
 
 
 
@@ -353,6 +357,19 @@ DON_VI_MAP = {
     "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
     "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY",
     "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD", "YHCT": "YHC", "HTQT": "HTQ"
+}
+# Chuẩn hoá không dấu để bắt các biến thể thường gõ nhầm
+UNIT_ALIASES = {
+    # Bệnh viện ĐHYD (BVY)
+    "bvdhyd": "BV ĐHYD",
+    "bv dhyd": "BV ĐHYD",
+    "bvđhyd": "BV ĐHYD",
+    "bvdvyd": "BV ĐHYD",     # hay gõ nhầm V/H
+    "bv đvyd": "BV ĐHYD",
+
+    # RHM
+    "rhm": "RHM",
+    "rmh": "RHM",            # đảo chữ cái
 }
 
 # ---------- Helpers ----------
