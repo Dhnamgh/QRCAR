@@ -516,10 +516,9 @@ elif choice == "📥 Tải dữ liệu lên":
                         df_to_write = fill_missing_codes(df_up)
                         df_to_write = ensure_codes(df_to_write, df_cur)
                         values = to_native_ll(df_to_write)
-                        values = values
-start_row = len(df_cur) + 2
-end_row = start_row + len(values) - 1
-gs_retry(sheet.update, f"A{start_row}:I{end_row}", values)# tạo QR cho toàn bộ df_to_write
+                        for row_vals in values:
+                            gs_retry(sheet.append_row, row_vals)
+                        # tạo QR cho toàn bộ df_to_write
                         for _, r in df_to_write.iterrows():
                             norm = normalize_plate(r["Biển số"])
                             link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
@@ -529,7 +528,7 @@ gs_retry(sheet.update, f"A{start_row}:I{end_row}", values)# tạo QR cho toàn b
 
                     elif mode == "Thay thế toàn bộ (replace all)":
                         df_to_write = fill_missing_codes(df_up)
-                        sheet.clear()
+                        gs_retry(sheet.clear, )
                         gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                         df_to_write = ensure_codes(df_to_write, df_cur)
                         values = to_native_ll(df_to_write)
@@ -581,7 +580,7 @@ gs_retry(sheet.update, f"A{start_row}:I{end_row}", values)# tạo QR cho toàn b
                         try:
                             df_all = load_df()
                             df_all = reindex_stt(df_all)
-                            sheet.clear()
+                            gs_retry(sheet.clear, )
                             gs_retry(sheet.update, "A1", [REQUIRED_COLUMNS])
                             values_all = to_native_ll(df_all)
                             if values_all:
