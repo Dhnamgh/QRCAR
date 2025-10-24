@@ -676,6 +676,7 @@ menu = [
     "📥 Tải dữ liệu lên",
     "📤 Xuất ra Excel",
     "📊 Thống kê xe theo đơn vị",
+    "🎁 Tạo mã QR hàng loạt",
     "🤖 Trợ lý AI"
 ]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
@@ -1060,6 +1061,69 @@ elif choice == "📊 Thống kê xe theo đơn vị":
     thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
     thong_ke_display.index = range(1, len(thong_ke_display) + 1)
     st.dataframe(thong_ke_display, use_container_width=True)
+# ====================== 🎁 TẠO MÃ QR HÀNG LOẠT ======================
+elif choice == "🎁 Tạo mã QR hàng loạt":
+    st.subheader("🎁 Tạo mã QR hàng loạt")
+
+    # URL GitHub Pages (nơi nhúng app Streamlit)
+    BASE_URL_QR = "https://dhnamgh.github.io/car/"
+
+    # Chọn nguồn dữ liệu
+    src_opt = st.radio("Chọn nguồn dữ liệu", ["Toàn bộ danh sách", "Danh sách đang lọc"], horizontal=True)
+
+    # Lấy dữ liệu gốc hoặc danh sách đang hiển thị
+    if src_opt == "Danh sách đang lọc" and "df_show" in locals():
+        df_qr = df_show.copy()
+    else:
+        df_qr = df.copy()
+
+    # Chuẩn hoá cột để chắc chắn có các cột cần thiết
+    df_qr = coerce_columns(df_qr)
+    for col in ["Mã thẻ", "Biển số", "Mã đơn vị"]:
+        if col not in df_qr.columns:
+            df_qr[col] = ""
+
+    st.info(f"Mỗi mã QR sẽ mở trang: {BASE_URL_QR}?id=<MãThẻ>")
+
+    if st.button("⚡ Tạo ZIP mã QR"):
+        import io, zipfile, urllib.parse
+
+        if df_qr.empty:
+            st.warning("Không có dữ liệu để tạo QR.")
+        else:
+            files = []
+            for _, r in df_qr.iterrows():
+                # Ưu tiên Mã thẻ, fallback Biển số (đã chuẩn hoá)
+                vid = str(r.get("Mã thẻ", "")).strip()
+                if not vid and "Biển số" in df_qr.columns:
+                    vid = normalize_plate(r.get("Biển số", ""))
+                if not vid:
+                    continue
+
+                url = f"{BASE_URL_QR}?id={urllib.parse.quote(vid)}"  # KHÔNG thêm mật khẩu
+                png = make_qr_bytes(url)
+
+                unit = str(r.get("Mã đơn vị", "")).strip().upper() or "NO_UNIT"
+                files.append((f"{unit}/{vid}.png", png))
+
+            if not files:
+                st.warning("Không có bản ghi hợp lệ để tạo QR.")
+            else:
+                buf = io.BytesIO()
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+                    for name, data in files:
+                        zf.writestr(name, data)
+                buf.seek(0)
+
+                st.download_button(
+                    "⬇️ Tải ZIP QR (phân theo đơn vị)",
+                    data=buf.getvalue(),
+                    file_name="qr_xe_theo_don_vi.zip",
+                    mime="application/zip"
+                )
+                st.success(f"✅ Đã tạo {len(files)} QR và gói ZIP sẵn sàng tải về.")
+                st.caption("Quét QR sẽ mở GitHub Pages, app sẽ yêu cầu mật khẩu QR (từ st.secrets).")
+# ====================== /🎁 TẠO MÃ QR HÀNG LOẠT ======================
 
 elif choice == "🤖 Trợ lý AI":
     st.subheader("🤖 Trợ lý AI (AI nhẹ, không dùng API)")
