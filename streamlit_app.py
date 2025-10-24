@@ -393,8 +393,7 @@ if choice == "📋 Xem danh sách":
     # Chuẩn hoá hiển thị, LOẠI CỘT RÁC, ẨN INDEX
     df_show = df.copy()
     # bỏ các cột "Unnamed: 0" nếu có
-    df_show = df_show.loc[:, ~df_show.columns.str.match(r"^\s*Unnamed", na=False)]
-    df_show = df_show.reset_index(drop=True)
+    df_show = clean_df(df_show)
 
     if "Biển số" in df_show.columns:
         df_show["Biển số"] = df_show["Biển số"].apply(dinh_dang_bien_so)
@@ -627,7 +626,7 @@ elif choice == "📥 Tải dữ liệu lên":
             st.stop()
 
         # ---- Làm sạch: bỏ cột rác 'Unnamed:*', ẩn index, đảm bảo đủ cột chuẩn ----
-        df_up = df_up.loc[:, ~df_up.columns.str.match(r"^\s*Unnamed", na=False)].reset_index(drop=True)
+        df_up = clean_df(df_up)
         for c in REQUIRED_COLUMNS:
             if c not in df_up.columns:
                 df_up[c] = ""
