@@ -72,6 +72,20 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
 
     import unicodedata, re as _re
 
+    # ===== Aliases để bắt các biến thể vẫn đúng là 1 đơn vị =====
+    UNIT_ALIASES = {
+        # BV ĐHYD
+        "bvdhyd": "BV ĐHYD",
+        "bv dhyd": "BV ĐHYD",
+        "bvđhyd": "BV ĐHYD",
+        "bvdvyd": "BV ĐHYD",   # hay nhầm 'H' -> 'V'
+        "bv đvyd": "BV ĐHYD",
+
+        # RHM
+        "rhm": "RHM",
+        "rmh": "RHM",          # đảo chữ cái
+    }
+
     def _canon_name(s):
         s = "" if s is None else str(s)
         s = unicodedata.normalize("NFD", s)
@@ -86,10 +100,7 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
         return s.lower() in {"nan", "none", "null", "na", "n/a", "-", "_"}
 
     # 1) Map tên -> mã đơn vị
-    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }  # bảng quy ước chính
-    unit_alias = UNIT_ALIASES  # biến thể thường gặp -> tên chuẩn trong DON_VI_MAP
-
-    # map hiện có trên sheet
+    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }  # dùng chính DON_VI_MAP của bạn
     unit_map_sheet = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
         for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
@@ -112,21 +123,20 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
 
     def resolve_unit_code(ten):
         if _is_blank(ten):
-            base = _slug_unit("")
-            return base
-        # alias -> tên chuẩn
+            return _slug_unit("")
         ckey = _canon_name(ten)
-        if ckey in unit_alias:
-            std_name = unit_alias[ckey]
+        # a) Alias -> tên chuẩn -> DON_VI_MAP
+        if ckey in UNIT_ALIASES:
+            std_name = UNIT_ALIASES[ckey]
             return DON_VI_MAP.get(std_name, _slug_unit(std_name))
-        # tra trực tiếp DON_VI_MAP (bỏ dấu/hoa-thường)
+        # b) DON_VI_MAP trực tiếp
         if ckey in canon_from_const:
             return canon_from_const[ckey]
-        # tra map đã có trên sheet
+        # c) Tên trùng dữ liệu đang có
         key_up = str(ten).strip().upper()
         if key_up in unit_map_sheet:
             return unit_map_sheet[key_up]
-        # fallback
+        # d) Fallback slug (tránh trùng)
         base, cand, k = _slug_unit(str(ten)), None, 2
         cand = base
         while cand.upper() in used_units:
@@ -134,7 +144,7 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
         used_units.add(cand.upper())
         return cand
 
-    # 2) Seed số thứ tự mã thẻ theo từng đơn vị (KHB001..., TRY001..., nối tiếp)
+    # 2) Seed số thứ tự mã thẻ theo từng đơn vị (KHB001…, TRY001…)
     CARD_PAD = 3
     per_unit_seed = {}
     if not df_cur.empty and all(c in df_cur.columns for c in ["Mã đơn vị","Mã thẻ"]):
@@ -147,26 +157,21 @@ def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
                     except: pass
             per_unit_seed[uc] = mx
 
-    # 3) Gán Mã đơn vị + Mã thẻ
+    # 3) Gán Mã đơn vị + Mã thẻ (luôn ép theo DON_VI_MAP/ALIASES nếu tên đơn vị khớp)
     for i, r in df_up.iterrows():
         ten_dv = r.get("Tên đơn vị", "")
-        ma_dv  = r.get("Mã đơn vị", "")
-        if _is_blank(ma_dv):
-            ma_dv = resolve_unit_code(ten_dv)
-            df_up.at[i, "Mã đơn vị"] = ma_dv
+        target_uc = resolve_unit_code(ten_dv)  # <-- mã đơn vị đích theo quy ước
+        df_up.at[i, "Mã đơn vị"] = target_uc   # ghi đè để sửa mọi lệch mã có sẵn
 
         ma_the = r.get("Mã thẻ", "")
         if _is_blank(ma_the):
-            uc = str(ma_dv).strip().upper()
+            uc = str(target_uc).strip().upper()
             if uc not in per_unit_seed:
                 per_unit_seed[uc] = 0
             per_unit_seed[uc] += 1
             df_up.at[i, "Mã thẻ"] = f"{uc}{str(per_unit_seed[uc]).zfill(CARD_PAD)}"
 
     return df_up
-
-
-
 
 def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
     for i in range(max_retries):
@@ -194,7 +199,51 @@ def write_bulk(sheet, df_cur: pd.DataFrame, df_new: pd.DataFrame, chunk_rows=200
         written += len(block)
         time.sleep(pause)
     return written
-# ==== /DROP-IN ====
+def _get_query_params():
+    try:
+        return st.query_params
+    except Exception:
+        return st.experimental_get_query_params()
+
+def _normalize_plate(s: str) -> str:
+    import re
+    s = "" if s is None else str(s).upper()
+    return re.sub(r"[^A-Z0-9]", "", s)
+
+def qr_gate_and_show(df_cur):
+    q = _get_query_params()
+    raw_id = (q.get("id") or [""])[0] if isinstance(q, dict) else q.get("id", "")
+    id_ = str(raw_id).strip()
+    if not id_:
+        return False  # không ở chế độ QR
+
+    # Cổng QR dùng secrets
+    if not st.session_state.get("_qr_ok"):
+        pw = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password", key="_qr_pw")
+        if pw:
+            if pw == st.secrets["qr_password"]:
+                st.session_state["_qr_ok"] = True
+                st.rerun()
+            else:
+                st.error("❌ Mật khẩu QR sai.")
+                st.stop()
+        st.stop()
+
+    # Tìm đúng dòng: ưu tiên Mã thẻ, fallback Biển số
+    sel = df_cur[df_cur["Mã thẻ"].astype(str).str.upper() == id_.upper()]
+    if sel.empty and "Biển số" in df_cur:
+        sel = df_cur[df_cur["Biển số"].astype(str).map(_normalize_plate) == _normalize_plate(id_)]
+
+    if sel.empty:
+        st.error("❌ Không tìm thấy xe.")
+    else:
+        st.success("✅ Xác thực OK")
+        st.dataframe(sel, hide_index=True)
+    st.stop()
+
+# GỌI NGAY SAU KHI LOAD df_cur:
+qr_gate_and_show(df_cur)
+
 
 # ---------- Page config ----------
 
