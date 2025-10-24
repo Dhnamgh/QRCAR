@@ -26,31 +26,37 @@ def clean_df(df: pd.DataFrame) -> pd.DataFrame:
 
 # ==== Google Sheets connector (chuẩn cho SHEET_ID và Sheet 1) ====
 from google.oauth2.service_account import Credentials
+import gspread
+
+SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500xx"
+WORKSHEET_NAME = "Sheet 1"
 
 @st.cache_resource(show_spinner=False)
 def get_sheet():
-    """
-    Mở đúng Google Sheet ID + tab "Sheet 1".
-    Tự tạo tab nếu chưa có, đồng thời ghi header.
-    """
-    info = st.secrets["google_service_account"]
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-
-    # Ưu tiên dùng google.oauth2.service_account
+    """Mở đúng Google Sheet ID + tab 'Sheet 1'. Tự tạo tab + header nếu chưa có."""
     try:
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-    except Exception:
-        # fallback sang oauth2client nếu đang dùng loại cũ
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(info, scopes=scopes)
+        info = st.secrets["google_service_account"]
+    except KeyError:
+        st.error("Thiếu block [google_service_account] trong secrets.")
+        st.stop()
+
+    # Kiểm tra private_key có định dạng đúng không (có BEGIN/END và xuống dòng)
+    pk = info.get("private_key", "")
+    if not isinstance(pk, str) or "BEGIN PRIVATE KEY" not in pk:
+        st.error("private_key trong secrets sai định dạng. Hãy dùng triple quotes và giữ nguyên xuống dòng.")
+        st.stop()
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
 
     gc = gspread.authorize(creds)
-    sh = gc.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc")
+    sh = gc.open_by_key(SHEET_ID)
 
     try:
-        ws = sh.worksheet("Sheet 1")
+        ws = sh.worksheet(WORKSHEET_NAME)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title="Sheet 1", rows="2000", cols="20")
-        # tạo header mặc định
+        ws = sh.add_worksheet(title=WORKSHEET_NAME, rows="2000", cols="20")
+        # tạo header mặc định nếu sheet mới tinh
         gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])
 
     return ws
