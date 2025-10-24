@@ -10,6 +10,36 @@ from io import BytesIO
 import difflib
 import zipfile
 import io
+# ==== Google Sheets connector (chuẩn cho SHEET_ID và Sheet 1) ====
+from google.oauth2.service_account import Credentials
+
+@st.cache_resource(show_spinner=False)
+def get_sheet():
+    """
+    Mở đúng Google Sheet ID + tab "Sheet 1".
+    Tự tạo tab nếu chưa có, đồng thời ghi header.
+    """
+    info = st.secrets["google_service_account"]
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+
+    # Ưu tiên dùng google.oauth2.service_account
+    try:
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+    except Exception:
+        # fallback sang oauth2client nếu đang dùng loại cũ
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(info, scopes=scopes)
+
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key("1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc")
+
+    try:
+        ws = sh.worksheet("Sheet 1")
+    except gspread.WorksheetNotFound:
+        ws = sh.add_worksheet(title="Sheet 1", rows="2000", cols="20")
+        # tạo header mặc định
+        gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])
+
+    return ws
 # ---------- Google Sheets helper ----------
 import time, random
 
@@ -305,7 +335,7 @@ if bien_so_url:
 if "auth_ok" not in st.session_state:
     st.session_state.auth_ok = False
 
-# Logo + tiêu đề (chỉ hiện sau login, nhưng để đẹp, ta hiện luôn tiêu đề)
+# Logo + tiêu đề
 st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
 
 if not st.session_state.auth_ok:
@@ -812,8 +842,8 @@ elif choice == "📊 Thống kê xe theo đơn vị":
     st.dataframe(thong_ke_display, use_container_width=True)
 
 elif choice == "🤖 Trợ lý AI":
-    st.subheader("🤖 Trợ lý AI (AI nhẹ, không dùng API)")
-    q = st.text_input("Gõ câu tự nhiên: ví dụ 'xe của Trường Y tên Hùng', '59A1', 'email @ump.edu.vn', '0912345678'…")
+    st.subheader("🤖 Trợ lý AI")
+    q = st.text_input("Gõ câu ngắn, AI hiểu ngôn ngữ tự nhiên: ví dụ 'xe của Trường Y tên Hùng', '59A1', '0912345678'…")
     if q:
         keys = simple_query_parser(q)
         with st.expander("Xem cách app hiểu câu hỏi (keys)", expanded=False):
