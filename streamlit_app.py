@@ -13,6 +13,40 @@ import io
 # ==== DROP-IN: bulk upload fixed (no UI changes) ====
 import re, time, random
 import pandas as pd
+# ==== Gates cho App & QR ====
+def _get_query_params():
+    try:
+        return st.query_params       # Streamlit mới
+    except Exception:
+        return st.experimental_get_query_params()  # fallback cũ
+
+def is_qr_mode() -> bool:
+    q = _get_query_params()
+    raw = q.get("id", "")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return bool(str(raw).strip())
+
+def gate_app():
+    # Nếu đang mở bằng QR (?id=...), bỏ qua app_password.
+    if is_qr_mode():
+        return True
+    if st.session_state.get("_app_ok"):
+        return True
+
+    pw = st.text_input("🔒 Nhập mật khẩu vào ứng dụng", type="password", key="_app_pw")
+    if pw:
+        if pw == st.secrets["app_password"]:   # key bạn đang dùng trong secrets
+            st.session_state["_app_ok"] = True
+            st.rerun()
+        else:
+            st.error("Mật khẩu sai.")
+            st.stop()
+    st.stop()
+
+# GỌI NGAY
+gate_app()
+# ==== /Gates ====
 
 END_COL = "I"  # nếu sheet của bạn có nhiều/ít cột hơn, đổi chữ cái cột cuối
 
@@ -693,7 +727,56 @@ if choice == "📋 Xem danh sách":
             st.warning("Không tìm thấy cột 'Biển số' trong dữ liệu hiển thị.")
         except Exception:
             pass
+    qr_gate_and_show(df_show)
     st.dataframe(df_show, hide_index=True)
+# ==== QR gate & hiển thị 1 xe theo id ====
+def normalize_plate(s: str) -> str:
+    s = "" if s is None else str(s).upper()
+    return re.sub(r"[^A-Z0-9]", "", s)
+
+def qr_gate_and_show(df_show):
+    # Chỉ chạy khi URL có ?id=...
+    q = _get_query_params()
+    raw_id = q.get("id", "")
+    if isinstance(raw_id, list):
+        raw_id = raw_id[0] if raw_id else ""
+    id_ = str(raw_id).strip()
+    if not id_:
+        return False
+
+    # Lấy secret đúng tên (ưu tiên QR_PASSWORD như bạn đang cấu hình)
+    QR_SECRET = st.secrets.get("QR_PASSWORD") or st.secrets.get("qr_password")
+    if QR_SECRET is None:
+        st.error("Thiếu secret: QR_PASSWORD.")
+        st.stop()
+
+    # Cổng mật khẩu QR
+    if not st.session_state.get("_qr_ok"):
+        pw = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password", key="_qr_pw")
+        if pw:
+            if pw == QR_SECRET:
+                st.session_state["_qr_ok"] = True
+                st.rerun()
+            else:
+                st.error("❌ Mật khẩu QR sai.")
+                st.stop()
+        st.stop()
+
+    # Lọc đúng 1 xe: ưu tiên "Mã thẻ", fallback "Biển số" đã chuẩn hoá
+    sel = df_show[df_show.get("Mã thẻ", "").astype(str).str.upper() == id_.upper()] \
+          if "Mã thẻ" in df_show.columns else df_show.iloc[0:0]
+    if sel.empty and "Biển số" in df_show.columns:
+        sel = df_show[df_show["Biển số"].astype(str).map(normalize_plate) == normalize_plate(id_)]
+
+    if sel.empty:
+        st.error("❌ Không tìm thấy xe.")
+    else:
+        st.success("✅ Xác thực OK – Thông tin xe:")
+        st.dataframe(sel, hide_index=True)
+
+    # Dừng phần còn lại để KHÔNG render toàn bộ danh sách
+    st.stop()
+# ==== /QR gate ====
 
 
 elif choice == "🔍 Tìm kiếm xe":
