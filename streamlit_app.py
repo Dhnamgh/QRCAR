@@ -10,6 +10,20 @@ from io import BytesIO
 import difflib
 import zipfile
 import io
+def clean_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Chuẩn hóa tên cột về string, bỏ cột Unnamed, reset index (ẩn cột 0,1,2...)."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    # tên cột -> string
+    cols = [(str(c).strip() if c is not None else "") for c in df.columns]
+    df = df.copy()
+    df.columns = cols
+    # bỏ cột rác dạng 'Unnamed: ...'
+    keep = [c for c in df.columns if not re.match(r"^\s*Unnamed", c)]
+    df = df.loc[:, keep]
+    # bỏ cột index hiển thị
+    return df.reset_index(drop=True)
+
 # ==== Google Sheets connector (chuẩn cho SHEET_ID và Sheet 1) ====
 from google.oauth2.service_account import Credentials
 
