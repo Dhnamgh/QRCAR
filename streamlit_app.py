@@ -292,7 +292,7 @@ menu = [
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
 
 # ---------- Các tính năng ----------
-elif choice == "📋 Xem danh sách":
+if choice == "📋 Xem danh sách":
     st.subheader("📋 Danh sách xe đã đăng ký")
 
     # Chuẩn hoá, dọn cột rác, ẨN INDEX
