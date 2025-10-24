@@ -241,13 +241,7 @@ def qr_gate_and_show(df_cur):
         st.dataframe(sel, hide_index=True)
     st.stop()
 
-# GỌI NGAY SAU KHI LOAD df_cur:
-qr_gate_and_show(df_cur)
-
-
 # ---------- Page config ----------
-
-# ==== BEGIN INLINED HELPERS (no external import needed) ====
 import re as _re_patch, unicodedata as _unicodedata_patch, time as _time_patch, random as _random_patch
 import pandas as _pd_patch
 
