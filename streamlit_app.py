@@ -1,327 +1,282 @@
-
-# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
+import urllib.parse
 import gspread
-from google.oauth2.service_account import Credentials
-import re, io, zipfile, urllib.parse, time, random
+from oauth2client.service_account import ServiceAccountCredentials
+import qrcode
+import re
+from PIL import Image
 from io import BytesIO
+import difflib
+import zipfile
+import io
 
-# ================== CONFIG ==================
-SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
-WORKSHEET_NAME = "Sheet 1"
-BASE_URL_QR = "https://dhnamgh.github.io/car/index.html"
+# ---------- Page config ----------
+st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
 
-# Columns
-REQUIRED_COLUMNS = ["STT","Họ tên","Biển số","Mã thẻ","Mã đơn vị","Tên đơn vị","Chức vụ","Số điện thoại","Email"]
-
-# Đổi theo quy ước
+# ---------- Constants ----------
+REQUIRED_COLUMNS = ["STT", "Họ tên", "Biển số", "Mã thẻ", "Mã đơn vị", "Tên đơn vị", "Chức vụ", "Số điện thoại", "Email"]
 DON_VI_MAP = {
     "HCTH": "HCT", "TCCB": "TCC", "ĐTĐH": "DTD", "ĐTSĐH": "DTS", "KHCN": "KHC", "KHTC": "KHT",
     "QTGT": "QTG", "TTPC": "TTP", "ĐBCLGD&KT": "DBK", "CTSV": "CTS", "Trường Y": "TRY",
     "Trường Dược": "TRD", "Trường ĐD-KTYH": "TRK", "KHCB": "KHB", "RHM": "RHM", "YTCC": "YTC",
     "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
     "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY",
-    "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD", "YHCT": "YHC", "HTQT": "HTQ"
-}
-UNIT_ALIASES = {
-    "bvdhyd": "BV ĐHYD", "bv dhyd": "BV ĐHYD", "bvđhyd":"BV ĐHYD", "bvdvyd":"BV ĐHYD", "bv đvyd":"BV ĐHYD",
-    "rhm": "RHM", "rmh": "RHM",
-}
-CARD_PAD = 3  # TRY001 ...
-
-# ================== AUTH / GSPREAD ==================
-@st.cache_resource(show_spinner=False)
-def get_sheet():
-    # expects secrets["google_service_account"] block
-    info = st.secrets["google_service_account"]
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_info(info, scopes=scopes)
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(SHEET_ID)
-    ws = sh.worksheet(WORKSHEET_NAME)
-    return ws
-
-def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
-    for i in range(max_retries):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            status = getattr(getattr(e, "response", None), "status_code", None)
-            if status in (429, 500, 503):
-                time.sleep(base*(2**i) + random.uniform(0,0.5)); continue
-            msg = str(e).lower()
-            if any(t in msg for t in ["quota","rate limit","internal error","timeout"]):
-                time.sleep(base*(2**i) + random.uniform(0,0.5)); continue
-            raise
-    raise RuntimeError("Google Sheets write failed after multiple retries")
-
-def read_df():
-    ws = get_sheet()
-    values = gs_retry(ws.get_all_values)
-    if not values:
-        return pd.DataFrame(columns=REQUIRED_COLUMNS)
-    header = values[0]
-    rows = values[1:]
-    if not header:
-        return pd.DataFrame(columns=REQUIRED_COLUMNS)
-    # pad/truncate rows to header length
-    rows = [r + [""]*(len(header)-len(r)) if len(r)<len(header) else r[:len(header)] for r in rows]
-    df = pd.DataFrame(rows, columns=header)
-    return df
-
-# ================== HELPERS ==================
-def _canon(s):
-    import unicodedata
-    s = "" if s is None else str(s)
-    s = unicodedata.normalize("NFD", s)
-    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
-    s = re.sub(r"\s+", " ", s).strip().lower()
-    return s
-
-_CANON2STD = {
-    "stt":"STT","hoten":"Họ tên","ten":"Họ tên","hovaten":"Họ tên","name":"Họ tên",
-    "bienso":"Biển số","bien so":"Biển số","licenseplate":"Biển số","plate":"Biển số",
-    "mathe":"Mã thẻ","ma the":"Mã thẻ","ma_the":"Mã thẻ",
-    "madonvi":"Mã đơn vị","ma don vi":"Mã đơn vị","tendonvi":"Tên đơn vị","ten don vi":"Tên đơn vị",
-    "chucvu":"Chức vụ","sodienthoai":"Số điện thoại","dienthoai":"Số điện thoại","phone":"Số điện thoại",
-    "email":"Email"
+    "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD"
 }
 
-def coerce_columns(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame(columns=REQUIRED_COLUMNS)
-    rename, seen = {}, set()
-    for c in df.columns:
-        std = _CANON2STD.get(_canon(c))
-        if std and std not in seen:
-            rename[c] = std; seen.add(std)
-    out = df.rename(columns=rename).copy()
-    for c in REQUIRED_COLUMNS:
-        if c not in out.columns:
-            out[c] = ""
+# ---------- Helpers ----------
+def normalize_plate(plate: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9]', '', str(plate)).lower()
+
+def format_name(name: str) -> str:
+    return ' '.join(word.capitalize() for word in str(name).strip().split())
+
+def dinh_dang_bien_so(bs: str) -> str:
+    bs = re.sub(r"[^A-Z0-9]", "", str(bs).upper())
+    if len(bs) == 8:
+        return f"{bs[:3]}-{bs[3:6]}.{bs[6:]}"
+    return bs
+
+def to_native_ll(df: pd.DataFrame):
+    out = []
+    for _, row in df.iterrows():
+        items = []
+        for v in row.tolist():
+            if pd.isna(v):
+                items.append("")
+            elif isinstance(v, (int, float)):
+                if isinstance(v, float) and v.is_integer():
+                    items.append(int(v))
+                else:
+                    items.append(float(v) if isinstance(v, float) else int(v))
+            else:
+                items.append(str(v))
+        out.append(items)
     return out
 
-def normalize_plate(s: str) -> str:
-    s = "" if s is None else str(s).upper()
-    return re.sub(r"[^A-Z0-9]", "", s)
+def ensure_columns(df: pd.DataFrame):
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Thiếu cột bắt buộc: {', '.join(missing)}")
+    return df[REQUIRED_COLUMNS].copy()
 
-def safe_format_plate(s: str) -> str:
-    return "" if s is None else str(s).upper()
+def resolve_ma_don_vi(ten_don_vi: str, ma_don_vi_cur: str = "") -> str:
+    if str(ma_don_vi_cur).strip():
+        return str(ma_don_vi_cur).strip().upper()
+    name = str(ten_don_vi).strip()
+    return DON_VI_MAP.get(name, "").upper()
 
-def make_qr_bytes(data: str) -> bytes:
-    import qrcode
-    from qrcode.constants import ERROR_CORRECT_M
-    qr = qrcode.QRCode(version=None, error_correction=ERROR_CORRECT_M, box_size=10, border=2)
-    qr.add_data(data); qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    bio = BytesIO(); img.save(bio, format="PNG")
-    return bio.getvalue()
+def build_unit_counters(df_cur: pd.DataFrame) -> dict:
+    counters = {}
+    if "Mã thẻ" in df_cur.columns:
+        for val in df_cur["Mã thẻ"].dropna().astype(str):
+            m = re.match(r"^([A-Z]{3})(\d{3})$", val.strip().upper())
+            if m:
+                unit = m.group(1)
+                num = int(m.group(2))
+                counters[unit] = max(counters.get(unit, 0), num)
+    return counters
 
-def ensure_codes_all(df_up: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
-    df_up = coerce_columns(df_up).dropna(how="all").reset_index(drop=True)
-    df_cur = coerce_columns(df_cur if df_cur is not None else pd.DataFrame(columns=REQUIRED_COLUMNS))
+def assign_codes_for_row(row: pd.Series, counters: dict) -> pd.Series:
+    ma_dv = resolve_ma_don_vi(row.get("Tên đơn vị", ""), row.get("Mã đơn vị", ""))
+    row["Mã đơn vị"] = ma_dv
+    ma_the = str(row.get("Mã thẻ", "") or "").strip().upper()
+    if not ma_dv:
+        return row
+    if not ma_the:
+        cur = counters.get(ma_dv, 0) + 1
+        counters[ma_dv] = cur
+        row["Mã thẻ"] = f"{ma_dv}{cur:03d}"
+    else:
+        m = re.match(rf"^{ma_dv}(\d{{3}})$", ma_the)
+        if m:
+            counters[ma_dv] = max(counters.get(ma_dv, 0), int(m.group(1)))
+        row["Mã thẻ"] = ma_the
+    return row
 
-    import unicodedata, re as _re
-    def _canon_name(s):
-        s = "" if s is None else str(s)
-        s = unicodedata.normalize("NFD", s)
-        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
-        s = _re.sub(r"\s+", " ", s).strip().lower()
-        return s
+def reindex_stt(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["STT"] = list(range(1, len(df) + 1))
+    return df
 
-    def _is_blank(v) -> bool:
-        if v is None: return True
-        s = str(v).strip()
-        if s == "": return True
-        return s.lower() in {"nan","none","null","na","n/a","-","_"}
-
-    canon_from_const = { _canon_name(k): v for k, v in DON_VI_MAP.items() }
-
-    unit_map_sheet = {}
-    if not df_cur.empty and all(c in df_cur.columns for c in ["Tên đơn vị","Mã đơn vị"]):
-        for _, r in df_cur[["Tên đơn vị","Mã đơn vị"]].dropna().iterrows():
-            name = str(r["Tên đơn vị"]).strip().upper()
-            code = str(r["Mã đơn vị"]).strip().upper()
-            if name and code:
-                unit_map_sheet[name] = code
-
-    used_units = set(df_cur.get("Mã đơn vị", pd.Series(dtype=str)).dropna().astype(str).str.upper())
-
-    def _slug_unit(name: str) -> str:
-        if not isinstance(name, str) or not name.strip(): return "DV"
-        words = _re.findall(r"[A-Za-zÀ-ỹ0-9]+", name.strip(), flags=_re.UNICODE)
-        if not words: return "DV"
-        initials = "".join(w[0] for w in words).upper()
-        if len(initials) <= 1:
-            flat = _re.sub(r"[^A-Za-z0-9]", "", name.upper())
-            return (flat or "DV")[:8]
-        return initials[:8]
-
-    def resolve_unit_code(ten):
-        if _is_blank(ten):
-            return _slug_unit("")
-        ckey = _canon_name(ten)
-        if ckey in UNIT_ALIASES:
-            std_name = UNIT_ALIASES[ckey]
-            return DON_VI_MAP.get(std_name, _slug_unit(std_name))
-        if ckey in canon_from_const:
-            return canon_from_const[ckey]
-        key_up = str(ten).strip().upper()
-        if key_up in unit_map_sheet:
-            return unit_map_sheet[key_up]
-        base, cand, k = _slug_unit(str(ten)), None, 2
-        cand = base
-        while cand.upper() in used_units:
-            cand = f"{base}{k}"; k += 1
-        used_units.add(cand.upper())
-        return cand
-
-    # seed per unit from df_cur
-    per_unit_seed = {}
-    if not df_cur.empty and all(c in df_cur.columns for c in ["Mã đơn vị","Mã thẻ"]):
-        for uc, grp in df_cur.groupby(df_cur["Mã đơn vị"].astype(str).str.upper(), dropna=True):
-            mx = 0
-            for v in grp["Mã thẻ"].dropna().astype(str):
-                m = re.match(rf"^{re.escape(uc)}(\d+)$", v.strip(), flags=re.IGNORECASE)
-                if m:
-                    try: mx = max(mx, int(m.group(1)))
-                    except: pass
-            per_unit_seed[uc] = mx
-
-    # fill
-    for i, r in df_up.iterrows():
-        ten_dv = r.get("Tên đơn vị", "")
-        target_uc = resolve_unit_code(ten_dv)
-        df_up.at[i, "Mã đơn vị"] = target_uc
-
-        ma_the = r.get("Mã thẻ","")
-        if _is_blank(ma_the):
-            uc = str(target_uc).strip().upper()
-            if uc not in per_unit_seed:
-                per_unit_seed[uc] = 0
-            per_unit_seed[uc] += 1
-            df_up.at[i, "Mã thẻ"] = f"{uc}{str(per_unit_seed[uc]).zfill(CARD_PAD)}"
-
-    return df_up
-
-def write_bulk(sheet, df_cur: pd.DataFrame, df_new: pd.DataFrame, chunk_rows=200, pause=0.5):
-    df_cur = coerce_columns(df_cur)
-    df_new = ensure_codes_all(df_new, df_cur)
-    values = []
-    for _, row in df_new.iterrows():
-        ll = []
-        for c in REQUIRED_COLUMNS:
-            v = row.get(c, "")
-            if pd.isna(v): v = ""
-            ll.append(str(v))
-        values.append(ll)
-    start = len(df_cur) + 2
-    written = 0
-    for i in range(0, len(values), chunk_rows):
-        block = values[i:i+chunk_rows]
-        end_row = start+i+len(block)-1
-        rng = f"A{start+i}:I{end_row}"
-        gs_retry(sheet.update, rng, block)
-        written += len(block)
-        time.sleep(pause)
-    return written
-
-def build_qr_zip(df, base_url: str) -> bytes:
-    files = []
-    for _, r in df.iterrows():
-        vid = str(r.get("Mã thẻ","")).strip()
-        if not vid and "Biển số" in df.columns:
-            vid = normalize_plate(r.get("Biển số",""))
-        if not vid:
-            continue
-        url = f"{base_url}?id={urllib.parse.quote(vid)}"
-        png = make_qr_bytes(url)
-        unit = str(r.get("Mã đơn vị","")).strip().upper() or "NO_UNIT"
-        files.append((f"{unit}/{vid}.png", png))
-    if not files:
-        return b""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
-        for name, data in files:
-            zf.writestr(name, data)
+def make_qr_bytes(url: str) -> bytes:
+    img = qrcode.make(url)
+    buf = BytesIO()
+    img.save(buf)
     buf.seek(0)
     return buf.getvalue()
 
-# ================== GATES ==================
-def _get_query_params():
-    try:
-        return st.query_params
-    except Exception:
-        return st.experimental_get_query_params()
+# ---------- Lightweight "AI" helpers ----------
+def fuzzy_ratio(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
 
-def is_qr_mode() -> bool:
-    q = _get_query_params()
-    raw = q.get("id", "")
-    if isinstance(raw, list):
-        raw = raw[0] if raw else ""
-    return bool(str(raw).strip())
+def fuzzy_search_df(df: pd.DataFrame, query: str, topk: int = 50):
+    if df.empty or not str(query).strip():
+        return df.copy()
+    scores = []
+    for idx, row in df.iterrows():
+        s = 0.0
+        s += 2.0 * fuzzy_ratio(query, row.get("Biển số", ""))
+        s += fuzzy_ratio(query, row.get("Họ tên", ""))
+        s += fuzzy_ratio(query, row.get("Mã thẻ", ""))
+        s += 0.8 * fuzzy_ratio(query, row.get("Tên đơn vị", ""))
+        s += 0.8 * fuzzy_ratio(query, row.get("Mã đơn vị", ""))
+        s += 0.5 * fuzzy_ratio(query, row.get("Số điện thoại", ""))
+        s += 0.6 * fuzzy_ratio(query, row.get("Email", ""))
+        scores.append((idx, s))
+    scores.sort(key=lambda x: x[1], reverse=True)
+    idxs = [i for i, _ in scores[:topk]]
+    out = df.loc[idxs].copy()
+    out["__score__"] = [sc for _, sc in scores[:topk]]
+    return out.sort_values("__score__", ascending=False)
 
-def gate_app():
-    if is_qr_mode():
-        return True
-    if st.session_state.get("_app_ok"):
-        return True
-    pw = st.text_input("🔒 Nhập mật khẩu vào ứng dụng", type="password", key="_app_pw")
-    if pw:
-        if pw == st.secrets["app_password"]:
-            st.session_state["_app_ok"] = True
-            st.rerun()
-        else:
-            st.error("Mật khẩu sai."); st.stop()
+def simple_query_parser(q: str):
+    q = str(q).strip()
+    tokens = re.findall(r"[\wÀ-ỹ]+", q, flags=re.IGNORECASE)
+    keys = {"unit": None, "plate": None, "name": None, "email": None, "phone": None}
+    m_email = re.search(r"[\w\.-]+@[\w\.-]+", q)
+    if m_email: keys["email"] = m_email.group(0)
+    m_phone = re.search(r"(0\d{8,11})", q)
+    if m_phone: keys["phone"] = m_phone.group(1)
+    best_unit = None; best_score = 0
+    for t in tokens:
+        for name in DON_VI_MAP.keys():
+            sc = fuzzy_ratio(t, name)
+            if sc > best_score and sc > 0.75:
+                best_unit = name; best_score = sc
+    keys["unit"] = best_unit
+    plate_like = [t for t in tokens if re.search(r"[A-Za-z].*\d|\d.*[A-Za-z]", t)]
+    if plate_like:
+        keys["plate"] = plate_like[0]
+    if not keys["email"] and not keys["phone"] and not keys["plate"]:
+        if tokens:
+            keys["name"] = max(tokens, key=len)
+    return keys
+
+def filter_with_keys(df: pd.DataFrame, keys: dict):
+    cur = df.copy()
+    applied = False
+    if keys.get("unit"):
+        cur = cur[cur["Tên đơn vị"].astype(str).str.contains(keys["unit"], case=False, regex=False)]
+        applied = True
+    if keys.get("email"):
+        cur = cur[cur["Email"].astype(str).str.contains(keys["email"], case=False, regex=False)]
+        applied = True
+    if keys.get("phone"):
+        cur = cur[cur["Số điện thoại"].astype(str).str.contains(keys["phone"], case=False, regex=False)]
+        applied = True
+    if keys.get("plate"):
+        norm = normalize_plate(keys["plate"])
+        cur["__norm"] = cur["Biển số"].astype(str).apply(normalize_plate)
+        cur = cur[cur["__norm"].str.contains(norm, na=False)]
+        cur = cur.drop(columns=["__norm"], errors="ignore")
+        applied = True
+    if keys.get("name"):
+        cur = cur[cur["Họ tên"].astype(str).str.contains(keys["name"], case=False, regex=False)]
+        applied = True
+    return cur, applied
+
+# ---------- Secrets: mật khẩu ứng dụng ----------
+APP_PASSWORD = st.secrets.get("app_password") or st.secrets.get("qr_password")
+if not APP_PASSWORD:
+    st.error("❌ Thiếu mật khẩu ứng dụng trong secrets (app_password hoặc qr_password).")
     st.stop()
 
-gate_app()
+# ---------- Google Sheet init (giữ nguyên secrets/JSON) ----------
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+if "google_service_account" not in st.secrets:
+    st.error("❌ Thiếu [google_service_account] trong secrets.")
+    st.stop()
+try:
+    creds_dict = dict(st.secrets["google_service_account"])  # không đổi cấu trúc
+    pk = str(creds_dict.get("private_key", ""))
+    if ("-----BEGIN" in pk) and ("\\n" in pk) and ("\n" not in pk):
+        pk = pk.replace("\\r\\n", "\\n").replace("\\n", "\n")
+        creds_dict["private_key"] = pk
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
+    st.stop()
 
-def qr_gate_and_show(df_show: pd.DataFrame):
-    q = _get_query_params()
-    raw_id = q.get("id", "")
-    if isinstance(raw_id, list):
-        raw_id = raw_id[0] if raw_id else ""
-    id_ = str(raw_id).strip()
-    if not id_:
-        return False
+# Thay bằng Sheet của bạn
+SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
+try:
+    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
+except Exception as e:
+    st.error(f"❌ Lỗi mở Google Sheet: {e}")
+    st.stop()
 
-    QR_SECRET = st.secrets.get("QR_PASSWORD") or st.secrets.get("qr_password")
-    if QR_SECRET is None:
-        st.error("Thiếu secret: QR_PASSWORD."); st.stop()
-
-    if not st.session_state.get("_qr_ok"):
-        pw = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password", key="_qr_pw")
-        if pw:
-            if pw == QR_SECRET:
-                st.session_state["_qr_ok"] = True; st.rerun()
-            else:
-                st.error("❌ Mật khẩu QR sai."); st.stop()
+# ---------- Load data ----------
+@st.cache_data(ttl=60)
+def load_df():
+    try:
+        data = sheet.get_all_records()
+        return pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"❌ Không thể tải dữ liệu xe: {e}")
         st.stop()
 
-    sel = df_show[df_show.get("Mã thẻ","").astype(str).str.upper() == id_.upper()] \
-          if "Mã thẻ" in df_show.columns else df_show.iloc[0:0]
-    if sel.empty and "Biển số" in df_show.columns:
-        sel = df_show[df_show["Biển số"].astype(str).map(normalize_plate) == normalize_plate(id_)]
-    if sel.empty:
-        st.error("❌ Không tìm thấy xe.")
+# ---------- QR GUARD (cho luồng quét QR) ----------
+bien_so_url = st.query_params.get("id", "")
+if bien_so_url:
+    # Ẩn sidebar & nav để người quét không thấy các tab
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {display: none !important;}
+            [data-testid="stSidebarNav"] {display: none !important;}
+            [data-testid="stSidebarContent"] {display: none !important;}
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🔍 Tra cứu xe bằng mã QR")
+    mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
+    if mat_khau:
+        if mat_khau.strip() != str(APP_PASSWORD):
+            st.error("❌ Sai mật khẩu!")
+        else:
+            df = load_df()
+            df_tmp = df.copy()
+            df_tmp["__norm"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
+            ket_qua = df_tmp[df_tmp["__norm"] == normalize_plate(bien_so_url)]
+            if ket_qua.empty:
+                st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_url}")
+            else:
+                st.success("✅ Thông tin xe:")
+                st.dataframe(ket_qua.drop(columns=["__norm"]), use_container_width=True)
+        st.stop()
     else:
-        st.success("✅ Xác thực OK – Thông tin xe:")
-        st.dataframe(sel, hide_index=True, use_container_width=True)
+        st.info("Vui lòng nhập mật khẩu để xem thông tin xe.")
+        st.stop()
+
+# ---------- App login gate ----------
+if "auth_ok" not in st.session_state:
+    st.session_state.auth_ok = False
+
+# Logo + tiêu đề (chỉ hiện sau login, nhưng để đẹp, ta hiện luôn tiêu đề)
+st.markdown("<h1 style='text-align:center; color:#004080;'>🚗 QR Car Management</h1>", unsafe_allow_html=True)
+
+if not st.session_state.auth_ok:
+    st.markdown("### 🔐 Đăng nhập")
+    pwd = st.text_input("Mật khẩu", type="password")
+    if st.button("Đăng nhập"):
+        if pwd.strip() == str(APP_PASSWORD):
+            st.session_state.auth_ok = True
+            st.success("✅ Đăng nhập thành công.")
+        else:
+            st.error("❌ Sai mật khẩu!")
     st.stop()
 
-# ================== APP ==================
-st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
+# ---------- Sau khi đăng nhập: sidebar + dữ liệu ----------
+st.sidebar.image("ump_logo.png", width=120)
+st.sidebar.markdown("---")
 
-# Load dữ liệu gốc
-try:
-    df = read_df()
-except Exception as e:
-    st.error(f"Lỗi đọc Google Sheet: {e}")
-    df = pd.DataFrame(columns=REQUIRED_COLUMNS)
+if "df" not in st.session_state:
+    st.session_state.df = load_df()
+df = st.session_state.df
 
-# Sidebar menu
+# ---------- Menu sau đăng nhập ----------
 menu = [
     "📋 Xem danh sách",
     "🔍 Tìm kiếm xe",
@@ -331,180 +286,378 @@ menu = [
     "📥 Tải dữ liệu lên",
     "📤 Xuất ra Excel",
     "📊 Thống kê xe theo đơn vị",
-    "🎁 Tạo mã QR hàng loạt",
     "🤖 Trợ lý AI"
 ]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
 
-# ---------- Xem danh sách ----------
+# ---------- Các tính năng ----------
 if choice == "📋 Xem danh sách":
     st.subheader("📋 Danh sách xe đã đăng ký")
-    df_show = coerce_columns(df.copy())
-    if "Biển số" in df_show.columns:
-        df_show["Biển số"] = df_show["Biển số"].apply(safe_format_plate)
-    qr_gate_and_show(df_show)  # nếu có ?id=... thì chỉ hiển thị 1 xe
-    st.dataframe(df_show, hide_index=True, use_container_width=True)
+    df_show = df.copy()
+    df_show["Biển số"] = df_show["Biển số"].apply(dinh_dang_bien_so)
+    st.dataframe(df_show, use_container_width=True)
 
-# ---------- Tìm kiếm ----------
 elif choice == "🔍 Tìm kiếm xe":
-    st.subheader("🔍 Tìm kiếm xe")
-    df_s = coerce_columns(df.copy())
-    q = st.text_input("Nhập Mã thẻ hoặc Biển số")
-    if q:
-        qn = normalize_plate(q)
-        res = df_s[df_s.get("Mã thẻ","").astype(str).str.upper()==q.upper()]
-        if res.empty and "Biển số" in df_s.columns:
-            res = df_s[df_s["Biển số"].astype(str).map(normalize_plate)==qn]
-        st.dataframe(res, hide_index=True, use_container_width=True)
-    else:
-        st.dataframe(df_s.head(50), hide_index=True, use_container_width=True)
+    st.subheader("🔍 Tìm kiếm xe theo biển số (hỗ trợ gần đúng)")
+    bien_so_input = st.text_input("Nhập biển số xe cần tìm")
+    allow_fuzzy = st.checkbox("Cho phép gợi ý gần đúng nếu không khớp tuyệt đối", value=True)
+    if bien_so_input:
+        bien_so_norm = normalize_plate(bien_so_input)
+        df_tmp = df.copy()
+        df_tmp["Biển số chuẩn hóa"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
+        ket_qua = df_tmp[df_tmp["Biển số chuẩn hóa"] == bien_so_norm]
+        if ket_qua.empty and allow_fuzzy:
+            st.info("Không khớp tuyệt đối. Thử gợi ý gần đúng…")
+            top = fuzzy_search_df(df, bien_so_input, topk=20)
+            if top.empty:
+                st.warning("🚫 Không tìm thấy kết quả.")
+            else:
+                st.success(f"✅ Gợi ý gần đúng (top {len(top)}):")
+                st.dataframe(top.drop(columns=["__score__"], errors="ignore"), use_container_width=True)
+        elif ket_qua.empty:
+            st.warning("🚫 Không tìm thấy xe nào khớp với biển số đã nhập.")
+        else:
+            st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+            st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
 
-# ---------- Đăng ký mới ----------
 elif choice == "➕ Đăng ký xe mới":
-    st.subheader("➕ Đăng ký xe mới")
-    ws = get_sheet()
-    df_cur = coerce_columns(df.copy())
-    ho_ten = st.text_input("Họ tên")
-    bien_so = st.text_input("Biển số")
-    ten_dv = st.text_input("Tên đơn vị")
-    chuc_vu = st.text_input("Chức vụ")
-    so_dt = st.text_input("Số điện thoại")
-    email = st.text_input("Email")
-    if st.button("Đăng ký"):
-        try:
-            rec = pd.DataFrame([{
-                "STT":"", "Họ tên":ho_ten, "Biển số":bien_so, "Mã thẻ":"",
-                "Mã đơn vị":"", "Tên đơn vị":ten_dv, "Chức vụ":chuc_vu,
-                "Số điện thoại":so_dt, "Email":email
-            }])
-            rec = ensure_codes_all(rec, df_cur)
-            rows = write_bulk(ws, df_cur, rec)
-            st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{rec.iloc[0]['Mã thẻ']}`")
+    st.subheader("📋 Đăng ký xe mới")
+    df_current = df.copy()
+    ten_don_vi = st.selectbox("Chọn đơn vị", list(DON_VI_MAP.keys()))
+    ma_don_vi = DON_VI_MAP[ten_don_vi]
+    col1, col2 = st.columns(2)
+    with col1:
+        ho_ten_raw = st.text_input("Họ tên")
+        bien_so_raw = st.text_input("Biển số xe")
+    with col2:
+        chuc_vu_raw = st.text_input("Chức vụ")
+        so_dien_thoai = st.text_input("Số điện thoại")
+        email = st.text_input("Email")
+    ho_ten = format_name(ho_ten_raw)
+    chuc_vu = format_name(chuc_vu_raw)
+    bien_so = dinh_dang_bien_so(bien_so_raw)
+    bien_so_da_dang_ky = df_current["Biển số"].dropna().apply(dinh_dang_bien_so)
+    if st.button("📥 Đăng ký"):
+        if bien_so in bien_so_da_dang_ky.values:
+            st.error("🚫 Biển số này đã được đăng ký trước đó!")
+        elif so_dien_thoai and not str(so_dien_thoai).startswith("0"):
+            st.warning("⚠️ Số điện thoại phải bắt đầu bằng số 0.")
+        elif ho_ten == "" or bien_so == "":
+            st.warning("⚠️ Vui lòng nhập đầy đủ thông tin.")
+        else:
+            try:
+                # Auto mã thẻ
+                counters = build_unit_counters(df_current)
+                cur = counters.get(ma_don_vi, 0) + 1
+                ma_the = f"{ma_don_vi}{cur:03d}"
+                sheet.append_row([
+                    int(len(df_current) + 1),
+                    ho_ten,
+                    bien_so,
+                    ma_the,
+                    ma_don_vi,
+                    ten_don_vi,
+                    chuc_vu,
+                    so_dien_thoai,
+                    email
+                ])
+                st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
+                # Tạo QR cho xe vừa đăng ký
+                norm = normalize_plate(bien_so)
+                link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                qr_png = make_qr_bytes(link)
+                st.image(qr_png, caption=f"QR cho {bien_so}", width=200)
+                st.download_button("📥 Tải mã QR", data=qr_png, file_name=f"QR_{bien_so}.png", mime="image/png")
+                st.caption("Quét mã sẽ yêu cầu mật khẩu trước khi xem thông tin.")
+                # Refresh
+                st.session_state.df = load_df()
+            except Exception as e:
+                st.error(f"❌ Lỗi ghi dữ liệu: {e}")
 
-            vid = rec.iloc[0]["Mã thẻ"] or normalize_plate(bien_so)
-            url = f"{BASE_URL_QR}?id={urllib.parse.quote(str(vid))}"
-            png = make_qr_bytes(url)
-            st.image(png, caption=f"QR cho {bien_so}", width=200)
-            st.download_button("📥 Tải mã QR", data=png, file_name=f"QR_{vid}.png", mime="image/png")
-
-        except Exception as e:
-            st.error(f"❌ Lỗi: {e}")
-
-# ---------- Cập nhật xe ----------
 elif choice == "✏️ Cập nhật xe":
     st.subheader("✏️ Cập nhật xe")
-    st.info("Chức năng rút gọn: dùng tab '📥 Tải dữ liệu lên' (Upsert) để cập nhật hàng loạt.")
+    bien_so_input = st.text_input("Nhập biển số xe cần cập nhật")
+    if bien_so_input:
+        bien_so_norm = normalize_plate(bien_so_input)
+        df_tmp = df.copy()
+        df_tmp["Biển số chuẩn hóa"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
+        ket_qua = df_tmp[df_tmp["Biển số chuẩn hóa"] == bien_so_norm]
+        if ket_qua.empty:
+            st.error("❌ Không tìm thấy biển số xe!")
+        else:
+            st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+            st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
+            idx_np = ket_qua.index[0]
+            index = int(idx_np)
+            row = ket_qua.iloc[0]
+            st.markdown("### 📝 Nhập thông tin mới để cập nhật")
+            col1, col2 = st.columns(2)
+            with col1:
+                ho_ten_moi = st.text_input("Họ tên", value=str(row["Họ tên"]))
+                bien_so_moi = st.text_input("Biển số xe", value=str(row["Biển số"]))
+                ten_don_vi_moi = st.text_input("Tên đơn vị", value=str(row["Tên đơn vị"]))
+                ma_don_vi_moi = st.text_input("Mã đơn vị", value=str(row["Mã đơn vị"]))
+            with col2:
+                chuc_vu_moi = st.text_input("Chức vụ", value=str(row["Chức vụ"]))
+                so_dien_thoai_moi = st.text_input("Số điện thoại", value=str(row["Số điện thoại"]))
+                email_moi = st.text_input("Email", value=str(row["Email"]))
+            if st.button("Cập nhật"):
+                try:
+                    try:
+                        stt_val = int(row.get("STT", ""))
+                    except Exception:
+                        stt_val = str(row.get("STT", ""))
+                    payload = [
+                        stt_val,
+                        ho_ten_moi,
+                        bien_so_moi,
+                        str(row["Mã thẻ"]),
+                        ma_don_vi_moi,
+                        ten_don_vi_moi,
+                        chuc_vu_moi,
+                        so_dien_thoai_moi,
+                        email_moi
+                    ]
+                    sheet.update(f"A{index+2}:I{index+2}", [payload])
+                    st.success("✅ Đã cập nhật thông tin xe thành công!")
+                    # Tạo QR cho xe sau cập nhật (dùng biển số mới)
+                    norm = normalize_plate(bien_so_moi)
+                    link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                    qr_png = make_qr_bytes(link)
+                    st.image(qr_png, caption=f"QR cho {bien_so_moi}", width=200)
+                    st.download_button("📥 Tải mã QR", data=qr_png, file_name=f"QR_{bien_so_moi}.png", mime="image/png")
+                    st.caption("Quét mã sẽ yêu cầu mật khẩu trước khi xem thông tin.")
+                    st.session_state.df = load_df()
+                except Exception as e:
+                    st.error(f"❌ Lỗi cập nhật: {e}")
 
-# ---------- Xóa xe ----------
 elif choice == "🗑️ Xóa xe":
-    st.subheader("🗑️ Xóa xe")
-    st.info("Chức năng rút gọn: vui lòng quản trị trực tiếp trên Google Sheet.")
-
-# ---------- Tải dữ liệu lên ----------
-elif choice == "📥 Tải dữ liệu lên":
-    st.subheader("📥 Tải dữ liệu từ Excel/CSV")
-    ws = get_sheet()
-    up = st.file_uploader("Chọn tệp Excel (.xlsx) hoặc CSV", type=["xlsx","csv"])
-    mode = st.selectbox("Chế độ ghi dữ liệu", ["Thêm (append)","Thay thế toàn bộ (replace all)","Upsert"])
-    dry_run = st.checkbox("🔎 Chạy thử (không ghi Google Sheets)")
-
-    if up is not None:
+    st.subheader("🗑️ Xóa xe khỏi danh sách")
+    bien_so_input = st.text_input("Nhập biển số xe cần xóa")
+    if bien_so_input:
         try:
-            if up.name.lower().endswith(".csv"):
-                df_up = pd.read_csv(up, dtype=str, keep_default_na=False)
+            bien_so_norm = normalize_plate(bien_so_input)
+            df_tmp = df.copy()
+            df_tmp["Biển số chuẩn hóa"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
+            ket_qua = df_tmp[df_tmp["Biển số chuẩn hóa"] == bien_so_norm]
+            if ket_qua.empty:
+                st.error("❌ Không tìm thấy biển số xe!")
             else:
-                df_up = pd.read_excel(up, dtype=str)
+                st.success(f"✅ Tìm thấy {len(ket_qua)} xe khớp.")
+                st.dataframe(ket_qua.drop(columns=["Biển số chuẩn hóa"]), use_container_width=True)
+                idx_np = ket_qua.index[0]
+                index = int(idx_np)
+                row = ket_qua.iloc[0]
+                if st.button("Xác nhận xóa"):
+                    sheet.delete_rows(int(index) + 2)
+                    st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
+                    st.session_state.df = load_df()
         except Exception as e:
-            st.error(f"❌ Không đọc được tệp: {e}"); st.stop()
+            st.error(f"⚠️ Lỗi khi xử lý: {e}")
 
-        df_up = coerce_columns(df_up)
-        st.dataframe(df_up.head(10), hide_index=True, use_container_width=True)
+elif choice == "📥 Tải dữ liệu lên":
+    st.subheader("📥 Tải dữ liệu từ file lên Google Sheet")
+    st.markdown("Bạn có thể để **trống** cột **Mã thẻ** và **Mã đơn vị** — hệ thống sẽ tự sinh dựa trên **Tên đơn vị**.")
 
-        if st.button("🚀 Thực thi"):
-            try:
-                df_cur = coerce_columns(df.copy())
-                df_to_write = ensure_codes_all(df_up.copy(), df_cur)
+    # Tải file mẫu
+    tmpl = pd.DataFrame(columns=REQUIRED_COLUMNS)
+    buf_tmpl = BytesIO()
+    with pd.ExcelWriter(buf_tmpl, engine='openpyxl') as writer:
+        tmpl.to_excel(writer, index=False, sheet_name='Template')
+    st.download_button("📄 Tải mẫu Excel", data=buf_tmpl.getvalue(),
+                       file_name="Template_DanhSachXe.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+    file = st.file_uploader("Chọn file dữ liệu (.xlsx hoặc .csv)", type=["xlsx", "csv"])
+    mode = st.selectbox("Chọn chế độ", ["Thêm (append)", "Thay thế toàn bộ (replace all)", "Cập nhật theo Biển số (upsert)"])
+    auto_stt = st.checkbox("🔢 Đánh lại STT sau khi ghi", value=True)
+    dry_run = st.checkbox("🧪 Chạy thử (không ghi)", value=True)
+
+    # Để gom QR sau upload
+    qr_images = []  # danh sách (filename, bytes)
+
+    if file is not None:
+        try:
+            df_up = pd.read_csv(file) if file.name.lower().endswith(".csv") else pd.read_excel(file)
+            df_up = ensure_columns(df_up)
+            st.success(f"✅ Đã đọc {len(df_up)} dòng từ file.")
+            st.dataframe(df_up.head(20), use_container_width=True)
+
+            df_cur = load_df()
+            counters = build_unit_counters(df_cur)
+
+            def fill_missing_codes(_df: pd.DataFrame) -> pd.DataFrame:
+                _df = _df.copy()
+                rows = []
+                for _, r in _df.iterrows():
+                    r = assign_codes_for_row(r, counters)
+                    rows.append(r)
+                out = pd.DataFrame(rows, columns=_df.columns)
+                if (out["Mã đơn vị"].astype(str).str.len() == 0).any():
+                    missing_rows = out[out["Mã đơn vị"].astype(str).str.len() == 0].index.tolist()
+                    raise ValueError(f"Không thể suy ra 'Mã đơn vị' từ 'Tên đơn vị' ở các dòng: {', '.join(str(i+2) for i in missing_rows)}")
+                return out
+
+            if st.button("🚀 Thực thi"):
                 if dry_run:
-                    st.info("🔎 Chạy thử: không ghi Google Sheets.")
+                    st.info("🔎 Chế độ chạy thử: không ghi dữ liệu. Bỏ chọn để ghi thật.")
                 else:
                     if mode == "Thêm (append)":
-                        rows = write_bulk(ws, df_cur, df_to_write)
-                        st.success(f"✅ Đã thêm {rows} dòng.")
-                    elif mode == "Thay thế toàn bộ (replace all)":
-                        gs_retry(ws.clear)
-                        gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])
-                        values = []
-                        for _, row in df_to_write.iterrows():
-                            values.append([str(row.get(c,"")) for c in REQUIRED_COLUMNS])
-                        if values:
-                            gs_retry(ws.update, f"A2:I{1+len(values)}", values)
-                        st.success(f"✅ Đã thay thế toàn bộ dữ liệu ({len(df_to_write)} dòng).")
-                    else:  # Upsert
-                        df_cur2 = coerce_columns(read_df())
-                        df_to_write = df_to_write.copy()
-                        def _keyify(df0):
-                            k1 = df0.get("Mã thẻ", pd.Series([""]*len(df0))).astype(str).str.upper().str.strip()
-                            k2 = df0["Biển số"].astype(str).map(normalize_plate) if "Biển số" in df0.columns else pd.Series([""]*len(df0))
-                            return k1.where(k1!="", k2)
-                        df_cur2["__KEY__"] = _keyify(df_cur2)
-                        df_to_write["__KEY__"] = _keyify(df_to_write)
-                        key_to_row = {k:i for i,k in df_cur2["__KEY__"].items() if str(k).strip()!=""}
-                        updated=inserted=0
+                        df_to_write = fill_missing_codes(df_up)
+                        values = to_native_ll(df_to_write)
+                        for row_vals in values:
+                            sheet.append_row(row_vals)
+                        # tạo QR cho toàn bộ df_to_write
                         for _, r in df_to_write.iterrows():
-                            key = str(r["__KEY__"]).strip()
-                            payload = [str(r.get(c,"")) for c in REQUIRED_COLUMNS]
-                            if key and key in key_to_row:
-                                idx0 = int(key_to_row[key])
-                                gs_retry(ws.update, f"A{idx0+2}:I{idx0+2}", [payload]); updated+=1
+                            norm = normalize_plate(r["Biển số"])
+                            link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                            png = make_qr_bytes(link)
+                            qr_images.append((f"QR_{r['Biển số']}.png", png))
+                        st.success(f"✅ Đã thêm {len(values)} dòng.")
+
+                    elif mode == "Thay thế toàn bộ (replace all)":
+                        df_to_write = fill_missing_codes(df_up)
+                        sheet.clear()
+                        sheet.update("A1", [REQUIRED_COLUMNS])
+                        values = to_native_ll(df_to_write)
+                        if values:
+                            sheet.update(f"A2:I{len(values)+1}", values)
+                        # tạo QR cho toàn bộ df_to_write
+                        for _, r in df_to_write.iterrows():
+                            norm = normalize_plate(r["Biển số"])
+                            link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                            png = make_qr_bytes(link)
+                            qr_images.append((f"QR_{r['Biển số']}.png", png))
+                        st.success(f"✅ Đã thay thế toàn bộ dữ liệu ({len(df_to_write)} dòng).")
+
+                    else:  # upsert
+                        df_up2 = fill_missing_codes(df_up)
+                        df_cur["__norm"] = df_cur["Biển số"].astype(str).apply(normalize_plate)
+                        df_up2["__norm"] = df_up2["Biển số"].astype(str).apply(normalize_plate)
+                        updated, inserted = 0, 0
+                        for _, r in df_up2.iterrows():
+                            norm = r["__norm"]
+                            match = df_cur[df_cur["__norm"] == norm]
+                            payload = [r.get(c, "") for c in REQUIRED_COLUMNS]
+                            norm_payload = []
+                            for x in payload:
+                                if pd.isna(x):
+                                    norm_payload.append("")
+                                elif isinstance(x, (int, float)):
+                                    if isinstance(x, float) and x.is_integer():
+                                        norm_payload.append(int(x))
+                                    else:
+                                        norm_payload.append(float(x) if isinstance(x, float) else int(x))
+                                else:
+                                    norm_payload.append(str(x))
+                            if not match.empty:
+                                idx = int(match.index[0])
+                                sheet.update(f"A{idx+2}:I{idx+2}", [norm_payload])
+                                updated += 1
                             else:
-                                gs_retry(ws.append_row, payload); inserted+=1
+                                sheet.append_row(norm_payload)
+                                inserted += 1
+                            # QR cho từng xe đã xử lý
+                            link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+                            png = make_qr_bytes(link)
+                            qr_images.append((f"QR_{r['Biển số']}.png", png))
                         st.success(f"✅ Upsert xong: cập nhật {updated} • thêm mới {inserted}.")
 
-                zip_bytes = build_qr_zip(df_to_write, BASE_URL_QR)
-                if zip_bytes:
-                    st.download_button("⬇️ Tải ZIP QR (phân theo đơn vị)",
-                                       data=zip_bytes, file_name="qr_xe_theo_don_vi.zip",
-                                       mime="application/zip")
-                    st.caption("Quét QR sẽ mở GitHub Pages và app yêu cầu mật khẩu QR (từ secrets).")
+                    # Đánh lại STT nếu chọn
+                    if not dry_run and auto_stt:
+                        try:
+                            df_all = load_df()
+                            df_all = reindex_stt(df_all)
+                            sheet.clear()
+                            sheet.update("A1", [REQUIRED_COLUMNS])
+                            values_all = to_native_ll(df_all)
+                            if values_all:
+                                sheet.update(f"A2:I{len(values_all)+1}", values_all)
+                            st.toast("🔢 Đã đánh lại STT 1..N.")
+                        except Exception as e:
+                            st.warning(f"⚠️ Không thể đánh lại STT tự động: {e}")
 
-            except Exception as e:
-                st.error(f"❌ Lỗi xử lý/ghi dữ liệu: {e}")
+                    # Nếu có QR -> gói ZIP để tải về
+                    if not dry_run and qr_images:
+                        zip_buf = io.BytesIO()
+                        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for fname, data in qr_images:
+                                zf.writestr(fname, data)
+                        zip_buf.seek(0)
+                        st.download_button(
+                            "📦 Tải tất cả mã QR (.zip)",
+                            data=zip_buf.getvalue(),
+                            file_name="QR_TatCaXe.zip",
+                            mime="application/zip"
+                        )
+                        st.caption("Tệp ZIP chứa PNG mã QR của các xe đã được xử lý trong lần tải dữ liệu này.")
 
-# ---------- Xuất ra Excel ----------
+                    st.toast("🔄 Làm mới dữ liệu hiển thị...")
+                    st.session_state.df = load_df()
+
+        except Exception as e:
+            st.error(f"❌ Lỗi khi tải/ghi dữ liệu: {e}")
+
 elif choice == "📤 Xuất ra Excel":
-    st.subheader("📤 Xuất ra Excel")
-    bio = BytesIO()
-    coerce_columns(df).to_excel(bio, index=False)
-    st.download_button("⬇️ Tải Excel", data=bio.getvalue(), file_name="ds_xe.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.subheader("📤 Tải danh sách xe dưới dạng Excel")
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='DanhSachXe')
+    processed_data = output.getvalue()
+    st.download_button(
+        label="📥 Tải Excel",
+        data=processed_data,
+        file_name="DanhSachXe.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-# ---------- Thống kê ----------
 elif choice == "📊 Thống kê xe theo đơn vị":
-    st.subheader("📊 Thống kê xe theo đơn vị")
-    d = coerce_columns(df.copy())
-    st.bar_chart(d.groupby("Mã đơn vị").size())
-
-# ---------- QR hàng loạt ----------
-elif choice == "🎁 Tạo mã QR hàng loạt":
-    st.subheader("🎁 Tạo mã QR hàng loạt")
-    df_qr = coerce_columns(df.copy())
-    for col in ["Mã thẻ","Biển số","Mã đơn vị"]:
-        if col not in df_qr.columns: df_qr[col] = ""
-    if st.button("⚡ Tạo ZIP QR"):
-        zip_bytes = build_qr_zip(df_qr, BASE_URL_QR)
-        if zip_bytes:
-            st.download_button("⬇️ Tải ZIP QR (phân theo đơn vị)",
-                               data=zip_bytes, file_name="qr_xe_theo_don_vi.zip",
-                               mime="application/zip")
-            st.success(f"✅ Đã tạo {len(df_qr)} QR.")
-        else:
-            st.warning("Không có bản ghi hợp lệ.")
-
-# ---------- Trợ lý AI ----------
-elif choice == "🤖 Trợ lý AI":
-    st.subheader("🤖 Trợ lý AI")
-    st.info("Tính năng đang được đơn giản hóa trong bản này.")
-
+    st.markdown("## 📊 Dashboard thống kê xe theo đơn vị")
+    df_stats = df.copy()
+    ten_day_du = {
+        "HCTH": "Phòng Hành Chính Tổng hợp",
+        "TCCB": "Phòng Tổ chức Cán bộ",
+        "ĐTĐH": "Phòng Đào tạo Đại học",
+        "ĐTSĐH": "Phòng Đào tạo Sau đại học",
+        "KHCN": "Phòng Khoa học Công nghệ",
+        "KHTC": "Phòng Kế hoạch Tài chính",
+        "QTGT": "Phòng Quản trị Giáo tài",
+        "TTPC": "Phòng Thanh tra Pháp chế",
+        "ĐBCLGD&KT": "Phòng Đảm bảo chất lượng GD và Khảo thí",
+        "CTSV": "Phòng Công tác sinh viên",
+        "KHCB": "Khoa Khoa học Cơ bản",
+        "RHM": "Khoa Răng hàm mặt",
+        "YTCC": "Khoa Y tế Công cộng",
+        "PK.CKRHM": "Phòng khám RHM",
+        "TT.KCCLXN": "Trung tâm Kiểm chuẩn CLXN",
+        "TT.KHCN UMP": "Trung tâm KHCN UMP",
+        "TT.YSHPT": "Trung tâm Y sinh học phân tử",
+        "KTX": "Ký túc xá",
+        "BV ĐHYD": "Bệnh viện ĐHYD",
+        "TT.PTTN": "Trung tâm PTTN",
+        "TT. GDYH": "Trung tâm GDYH",
+        "VPĐ": "VP Đoàn thể",
+        "Trường Y": "Trường Y",
+        "Trường Dược": "Trường Dược",
+        "Trường ĐD-KTYH": "Trường ĐD-KTYH",
+        "Thư viện": "Thư viện",
+        "Tạp chí Y học": "Tạp chí Y học"
+    }
+    thong_ke = df_stats.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+    thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
+    thong_ke["Tên đầy đủ"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
+    import plotly.express as px
+    fig = px.bar(thong_ke, x="Tên đơn vị", y="Số lượng xe", color="Tên đơn vị", text="Số lượng xe",
+                 title="📈 Biểu đồ số lượng xe theo đơn vị")
+    fig.update_traces(textposition="outside")
+    fig.update_layout(showlegend=False, height=600)
+    col = st.columns([0.1, 0.9])
+    with col[1]:
+        st.plotly_chart(fig, use_container_width=True)
+    st.markdown("#### 📋 Bảng thống kê chi tiết")
+    thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
+    thong_ke_display.index = range(1, len(thong_ke_display) + 1)
+    st.dataframe(thong_ke_display, use_container_width=True)
 
 elif choice == "🤖 Trợ lý AI":
     st.subheader("🤖 Trợ lý AI (AI nhẹ, không dùng API)")
