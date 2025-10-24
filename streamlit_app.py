@@ -10,6 +10,24 @@ from io import BytesIO
 import difflib
 import zipfile
 import io
+# ---------- Google Sheets helper ----------
+import time, random
+
+def gs_retry(func, *args, max_retries=7, base=0.6, **kwargs):
+    """
+    Thực thi hàm Google Sheets 
+    """
+    for i in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            # các lỗi tạm thời thường gặp
+            if any(t in msg for t in ["quota", "rate limit", "timeout", "internal error", "503", "500", "429"]):
+                time.sleep(base * (2 ** i) + random.uniform(0, 0.5))
+                continue
+            raise
+    raise RuntimeError(f"Google Sheets API failed sau {max_retries} lần thử")
 
 # ---------- Page config ----------
 st.set_page_config(page_title="QR Car Management", page_icon="🚗", layout="wide")
