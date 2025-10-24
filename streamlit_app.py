@@ -564,18 +564,15 @@ elif choice == "🗑️ Xóa xe":
 elif choice == "📥 Tải dữ liệu lên":
     st.subheader("📥 Tải dữ liệu từ Excel/CSV")
 
-    # Lấy worksheet (đổi tên biến cho khớp nếu bạn đang dùng ws/sheet/get_sheet)
-    sheet_obj = None
-    if 'sheet' in locals(): sheet_obj = sheet
-    elif 'ws' in locals(): sheet_obj = ws
-    elif 'get_sheet' in globals(): sheet_obj = get_sheet()
+    # ✅ luôn lấy đúng worksheet theo SHEET_ID/WORKSHEET_NAME
+    ws = get_sheet()
 
     up = st.file_uploader("Chọn tệp Excel (.xlsx) hoặc CSV", type=["xlsx", "csv"])
     mode = st.selectbox("Chế độ ghi dữ liệu", ["Thêm (append)", "Thay thế toàn bộ (replace all)", "Upsert"])
     dry_run = st.checkbox("🔎 Chạy thử (không ghi Google Sheets)")
 
     if up is not None:
-        # Đọc file
+        # ---- Đọc file người dùng upload ----
         try:
             if up.name.lower().endswith(".csv"):
                 df_up = pd.read_csv(up, dtype=str, keep_default_na=False)
@@ -585,24 +582,44 @@ elif choice == "📥 Tải dữ liệu lên":
             st.error(f"❌ Không đọc được tệp: {e}")
             st.stop()
 
-        # Làm sạch tên cột rác + ẩn index
+        # ---- Làm sạch: bỏ cột rác 'Unnamed:*', ẩn index, đảm bảo đủ cột chuẩn ----
         df_up = df_up.loc[:, ~df_up.columns.str.match(r"^\s*Unnamed", na=False)].reset_index(drop=True)
-        # Bảo đảm có đủ cột REQUIRED_COLUMNS
         for c in REQUIRED_COLUMNS:
             if c not in df_up.columns:
                 df_up[c] = ""
+
+        # (tuỳ chọn) Chuẩn hoá tên đơn vị hay bị nhập lệch
+        if "Tên đơn vị" in df_up.columns:
+            alias = {
+                "BV ĐVYD": "BV ĐHYD",
+                "BVÐHYD": "BV ĐHYD",
+                "BV DHYD": "BV ĐHYD",
+                "RMH": "RHM",
+                "rhm": "RHM",
+            }
+            df_up["Tên đơn vị"] = df_up["Tên đơn vị"].astype(str).str.replace("Ð", "Đ").str.replace("đ", "Đ")
+            df_up["Tên đơn vị"] = df_up["Tên đơn vị"].replace(alias)
 
         st.info(f"Đã nạp {len(df_up)} dòng. Xem nhanh 10 dòng đầu:")
         st.dataframe(df_up.head(10), hide_index=True, use_container_width=True)
 
         if st.button("🚀 Thực thi"):
             try:
-                # Dữ liệu hiện có (để seed số tăng dần cho từng đơn vị)
-                df_cur = df.copy()
-                for c in REQUIRED_COLUMNS:
-                    if c not in df_cur.columns: df_cur[c] = ""
+                # ---- Đọc hiện trạng sheet để seed số tăng theo đơn vị ----
+                cur_vals = gs_retry(ws.get_all_values)
+                if not cur_vals:
+                    gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])  # tạo header nếu sheet trống
+                    df_cur = pd.DataFrame(columns=REQUIRED_COLUMNS)
+                else:
+                    header = cur_vals[0]
+                    rows = cur_vals[1:]
+                    rows = [r + [""]*(len(header)-len(r)) if len(r) < len(header) else r[:len(header)] for r in rows]
+                    df_cur = pd.DataFrame(rows, columns=header)
+                    for c in REQUIRED_COLUMNS:
+                        if c not in df_cur.columns:
+                            df_cur[c] = ""
 
-                # Gán Mã đơn vị + Mã thẻ theo quy tắc của bạn
+                # ---- TỰ SINH MÃ ĐƠN VỊ + MÃ THẺ cho dữ liệu upload ----
                 counters = build_unit_counters(df_cur)
                 df_to_write = df_up.apply(lambda r: assign_codes_for_row(r, counters), axis=1)
                 df_to_write = df_to_write[REQUIRED_COLUMNS].copy()
@@ -610,21 +627,17 @@ elif choice == "📥 Tải dữ liệu lên":
                 if dry_run:
                     st.info("🔎 Chạy thử: không ghi Google Sheets.")
                 else:
-                    if sheet_obj is None:
-                        st.error("Không tìm thấy worksheet. Hãy kiểm tra biến ws/sheet hoặc hàm get_sheet().")
-                        st.stop()
-
                     if mode == "Thêm (append)":
                         # 👉 GHI THEO BLOCK (nhanh, không chạm quota)
-                        rows = write_bulk_block(sheet_obj, df_cur, df_to_write, columns=REQUIRED_COLUMNS)
-                        st.success(f"✅ Đã thêm {rows} dòng.")
+                        added = write_bulk_block(ws, df_cur, df_to_write, columns=REQUIRED_COLUMNS)
+                        st.success(f"✅ Đã thêm {added} dòng.")
 
                     elif mode == "Thay thế toàn bộ (replace all)":
-                        gs_retry(sheet_obj.clear)
-                        gs_retry(sheet_obj.update, "A1", [REQUIRED_COLUMNS])
+                        gs_retry(ws.clear)
+                        gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])
                         vals = _df_to_values(df_to_write, REQUIRED_COLUMNS)
                         if vals:
-                            gs_retry(sheet_obj.update, f"A2:I{1+len(vals)}", vals)
+                            gs_retry(ws.update, f"A2:I{1+len(vals)}", vals)
                         st.success(f"✅ Đã thay thế toàn bộ dữ liệu ({len(df_to_write)} dòng).")
 
                     else:  # Upsert — update theo nhóm liên tiếp + append theo block
@@ -637,53 +650,51 @@ elif choice == "📥 Tải dữ liệu lên":
 
                         df_cur2["__KEY__"] = _keyify(df_cur2)
                         df_to_write["__KEY__"] = _keyify(df_to_write)
-
                         key_to_row = {k: i for i, k in df_cur2["__KEY__"].items() if str(k).strip() != ""}
 
-                        updates = []   # (row_in_sheet, payload)
-                        inserts = []   # payloads để append sau
-
+                        updates, inserts = [], []
                         for _, r in df_to_write.iterrows():
                             key = str(r["__KEY__"]).strip()
                             payload = [str(r.get(c, "")) for c in REQUIRED_COLUMNS]
                             if key and key in key_to_row:
-                                idx0 = int(key_to_row[key])
+                                idx0 = int(key_to_row[key])  # vị trí trong sheet (tính cả header)
                                 updates.append((idx0+2, payload))  # +2 vì header ở dòng 1
                             else:
                                 inserts.append(payload)
 
-                        # 1) UPDATE theo nhóm liên tiếp để giảm số request
+                        # 1) UPDATE theo nhóm liên tiếp (giảm request)
                         updates.sort(key=lambda x: x[0])
-                        group = []
-                        prev = None
+                        grp, prev = [], None
                         for rownum, payload in updates:
                             if prev is None or rownum == prev + 1:
-                                group.append((rownum, payload))
+                                grp.append((rownum, payload))
                             else:
-                                rng = f"A{group[0][0]}:I{group[-1][0]}"
-                                gs_retry(sheet_obj.update, rng, [p for _, p in group])
-                                group = [(rownum, payload)]
+                                rng = f"A{grp[0][0]}:I{grp[-1][0]}"
+                                gs_retry(ws.update, rng, [p for _, p in grp])
+                                grp = [(rownum, payload)]
                             prev = rownum
-                        if group:
-                            rng = f"A{group[0][0]}:I{group[-1][0]}"
-                            gs_retry(sheet_obj.update, rng, [p for _, p in group])
+                        if grp:
+                            rng = f"A{grp[0][0]}:I{grp[-1][0]}"
+                            gs_retry(ws.update, rng, [p for _, p in grp])
 
-                        # 2) APPEND block lớn (rất nhanh)
+                        # 2) APPEND theo block (rất nhanh)
                         if inserts:
                             start = len(df_cur2) + 2
                             for i in range(0, len(inserts), 500):
                                 blk = inserts[i:i+500]
                                 end_row = start + i + len(blk) - 1
                                 rng = f"A{start+i}:I{end_row}"
-                                gs_retry(sheet_obj.update, rng, blk)
+                                gs_retry(ws.update, rng, blk)
 
                         st.success(f"✅ Upsert xong: cập nhật {len(updates)} • thêm mới {len(inserts)}.")
 
-                # Hiển thị kết quả mẫu (ẩn index)
-                st.dataframe(df_to_write.head(20).reset_index(drop=True), hide_index=True, use_container_width=True)
+                # ---- Hiển thị kết quả mẫu (ẩn index, KHÔNG trùng lặp) ----
+                st.dataframe(df_to_write.head(20).reset_index(drop=True),
+                             hide_index=True, use_container_width=True)
 
             except Exception as e:
                 st.error(f"❌ Lỗi xử lý/ghi dữ liệu: {e}")
+
 
 elif choice == "🎁 Tạo mã QR hàng loạt":
     st.subheader("🎁 Tạo mã QR hàng loạt")
