@@ -273,40 +273,52 @@ def load_df():
         st.error(f"❌ Không thể tải dữ liệu xe: {e}")
         st.stop()
 
-# QR guard: khi truy cập qua ?id=...
-bien_so_url = st.query_params.get("id", "")
-if bien_so_url:
+# ====== MẬT KHẨU ======
+APP_PASSWORD = str(st.secrets.get("app_password", ""))             # vào app quản trị
+QR_PASSWORD  = str(st.secrets.get("QR_PASSWORD", st.secrets.get("qr_password", "")))  # xem QR
+
+# ====== QR GATE: chỉ xem 1 xe theo ?id=... ======
+qr_id = st.query_params.get("id", "")  # chuỗi sau ?id=
+if qr_id:
+    # Ẩn sidebar khi mở bằng QR
     st.markdown("""
         <style>
-            [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stSidebarContent"] {
-                display: none !important;
-            }
+        [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stSidebarContent"] {display:none!important;}
         </style>
     """, unsafe_allow_html=True)
 
-    st.subheader("🔍 Tra cứu xe bằng mã QR")
+    st.subheader("🔍 Tra cứu xe qua QR")
+    pwd = st.text_input("🔑 Nhập mật khẩu QR", type="password", placeholder="Mật khẩu chỉ để xem QR")
+    if not QR_PASSWORD:
+        st.error("Thiếu QR_PASSWORD trong secrets."); st.stop()
 
-    # ---- dùng QR_PASSWORD trong secrets, fallback về app_password nếu thiếu ----
-    QR_PASSWORD = st.secrets.get("QR_PASSWORD") or st.secrets.get("qr_password") or st.secrets.get("app_password")
+    if not pwd:
+        st.info("Vui lòng nhập mật khẩu QR để xem thông tin xe."); st.stop()
 
-    mat_khau = st.text_input("🔑 Nhập mật khẩu xem thông tin xe", type="password", placeholder="Mật khẩu QR")
-    if mat_khau:
-        if mat_khau.strip() != str(QR_PASSWORD):
-            st.error("❌ Sai mật khẩu QR! Hãy nhập mật khẩu xem QR, không phải mật khẩu app.")
-        else:
-            df0 = load_df()
-            df_tmp = df0.copy()
-            df_tmp["__norm"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
-            ket_qua = df_tmp[df_tmp["__norm"] == normalize_plate(bien_so_url)]
-            if ket_qua.empty:
-                st.error(f"❌ Không tìm thấy xe có biển số hoặc mã QR: {bien_so_url}")
-            else:
-                st.success("✅ Thông tin xe:")
-                st.dataframe(ket_qua.drop(columns=["__norm"]), hide_index=True, use_container_width=True)
-        st.stop()
+    if pwd.strip() != QR_PASSWORD:
+        st.error("❌ Sai mật khẩu QR."); st.stop()
+
+    # Đúng mật khẩu QR → chỉ hiển thị đúng bản ghi có id này rồi dừng hẳn
+    df0 = load_df().copy()
+    df0["__plate_norm"] = df0["Biển số"].astype(str).apply(normalize_plate)
+    df0["__card_up"]    = df0.get("Mã thẻ", "").astype(str).str.upper().str.strip()
+
+    qr_up = str(qr_id).upper().strip()
+    qr_norm = normalize_plate(str(qr_id))
+
+    # Ưu tiên khớp MÃ THẺ (TRY001…), nếu không có thì khớp biển số chuẩn hóa
+    if re.fullmatch(r"[A-Z]{3}\d{3}", qr_up):
+        view = df0[df0["__card_up"].eq(qr_up)]
     else:
-        st.info("Vui lòng nhập mật khẩu QR để xem thông tin xe.")
-        st.stop()
+        view = df0[df0["__plate_norm"].eq(qr_norm)]
+
+    if view.empty:
+        st.error(f"Không tìm thấy xe với mã/biển số: {qr_id}")
+    else:
+        st.success("✅ Thông tin xe:")
+        st.dataframe(view.drop(columns=["__plate_norm","__card_up"], errors="ignore"),
+                     hide_index=True, use_container_width=True)
+    st.stop()   # RẤT QUAN TRỌNG: không cho chạy xuống app
 
 
 # Cổng đăng nhập app
