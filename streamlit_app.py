@@ -12,6 +12,19 @@ import difflib
 import zipfile
 import io
 import time, random
+BASE_URL_QR = "https://dhnamgh.github.io/car/"   # chạy qua GitHub
+
+def qr_target_id_from_row(row):
+    """Ưu tiên id = Mã thẻ (TRY001…), nếu chưa có thì dùng biển số chuẩn hóa."""
+    code = str(row.get("Mã thẻ", "")).strip().upper()
+    if re.fullmatch(r"[A-Z]{3}\d{3}", code):
+        return code
+    return normalize_plate(row.get("Biển số", ""))
+
+def make_qr_link_from_row(row):
+    vid = qr_target_id_from_row(row)
+    return f"{BASE_URL_QR}?id={urllib.parse.quote(vid)}"
+
 # --- helper lấy biến secret bất chấp viết hoa/thường/thừa khoảng trắng ---
 def _get_secret(*names: str) -> str:
     # Chuẩn hóa key: bỏ khoảng trắng, hạ thường, thay '-' thành '_'
@@ -460,9 +473,12 @@ elif choice == "➕ Đăng ký xe mới":
                     chuc_vu, so_dien_thoai, email
                 ])
                 st.success(f"✅ Đã đăng ký xe cho `{ho_ten}` với mã thẻ: `{ma_the}`")
-                norm = normalize_plate(bien_so)
-                link = f"https://qrcarump.streamlit.app/?id={urllib.parse.quote(norm)}"
+         
+                # Tạo QR cho xe vừa đăng ký (mở qua GitHub)
+                link  = make_qr_link_from_row({"Mã thẻ": ma_the, "Biển số": bien_so})
                 qr_png = make_qr_bytes(link)
+
+
                 st.image(qr_png, caption=f"QR cho {bien_so}", width=200)
                 st.download_button("📥 Tải mã QR", data=qr_png, file_name=f"QR_{bien_so}.png", mime="image/png")
                 st.caption("Quét mã sẽ yêu cầu mật khẩu trước khi xem thông tin.")
