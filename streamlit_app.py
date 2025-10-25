@@ -726,22 +726,23 @@ elif choice == "📊 Thống kê":
         "KHCB": "Khoa Khoa học Cơ bản",
         "RHM": "Khoa Răng hàm mặt",
         "YTCC": "Khoa Y tế Công cộng",
-        "PK.CKRHM": "Phòng khám RHM",
-        "TT.KCCLXN": "Trung tâm Kiểm chuẩn CLXN",
-        "TT.KHCN UMP": "Trung tâm KHCN UMP",
+        "PK.CKRHM": "Phòng khám Răng hàm mặt",
+        "TT.KCCLXN": "Trung tâm Kiểm chuẩn Chât lượng xét nghiệm",
+        "TT.KHCN UMP": "Trung tâm Khoa học Công nghệ UMP",
         "TT.YSHPT": "Trung tâm Y sinh học phân tử",
         "KTX": "Ký túc xá",
-        "BV ĐHYD": "Bệnh viện ĐHYD",
-        "TT.PTTN": "Trung tâm PTTN",
-        "TT. GDYH": "Trung tâm GDYH",
-        "VPĐ": "VP Đoàn thể",
+        "BV ĐHYD": "Bệnh viện Đại học Y Dược",
+        "TT.PTTN": "Trung tâm Phẫn thuật thực nghiệm",
+        "TT. GDYH": "Trung tâm Giáo dục Y học",
+        "VPĐ": "Văn phòng Đoàn thể",
         "Trường Y": "Trường Y",
         "Trường Dược": "Trường Dược",
-        "Trường ĐD-KTYH": "Trường ĐD-KTYH",
+        "Trường ĐD-KTYH": "Trường Điều dưỡng - Kỹ thuật Y học",
         "Thư viện": "Thư viện",
         "Tạp chí Y học": "Tạp chí Y học",
         "YHCT": "Khoa Y học Cổ truyền",
-        "HTQT": "Phòng Hợp tác Quốc tế"
+        "HTQT": "Phòng Hợp tác Quốc tế",
+        "TT.ĐTNLYT": Trung tâm ĐT Nhân lực Y tế
     }
 
     thong_ke = (
