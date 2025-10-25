@@ -742,7 +742,7 @@ elif choice == "📊 Thống kê":
         "Tạp chí Y học": "Tạp chí Y học",
         "YHCT": "Khoa Y học Cổ truyền",
         "HTQT": "Phòng Hợp tác Quốc tế",
-        "TT.ĐTNLYT": Trung tâm ĐT Nhân lực Y tế.
+        "TT.ĐTNLYT": "Trung tâm ĐT Nhân lực Y tế".
     }
 
     thong_ke = (
