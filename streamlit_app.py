@@ -527,11 +527,7 @@ elif choice == "📥 Tải dữ liệu lên":
             if c not in df_up.columns:
                 df_up[c] = ""
 
-        # Chuẩn hoá vài đơn vị hay gõ lệch
-        if "Tên đơn vị" in df_up.columns:
-            alias = {"BV ĐVYD": "BV ĐHYD", "BVÐHYD": "BV ĐHYD", "BV DHYD": "BV ĐHYD", "RMH": "RHM", "rhm": "RHM"}
-            df_up["Tên đơn vị"] = df_up["Tên đơn vị"].astype(str).str.replace("Ð", "Đ").str.replace("đ", "Đ")
-            df_up["Tên đơn vị"] = df_up["Tên đơn vị"].replace(alias)
+        
 
         st.info(f"Đã nạp {len(df_up)} dòng.")
 
