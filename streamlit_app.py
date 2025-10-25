@@ -278,31 +278,36 @@ bien_so_url = st.query_params.get("id", "")
 if bien_so_url:
     st.markdown("""
         <style>
-            [data-testid="stSidebar"] {display: none !important;}
-            [data-testid="stSidebarNav"] {display: none !important;}
-            [data-testid="stSidebarContent"] {display: none !important;}
+            [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stSidebarContent"] {
+                display: none !important;
+            }
         </style>
     """, unsafe_allow_html=True)
 
     st.subheader("🔍 Tra cứu xe bằng mã QR")
-    mat_khau = st.text_input("🔑 Nhập mật khẩu để xem thông tin xe", type="password")
+
+    # ---- dùng QR_PASSWORD trong secrets, fallback về app_password nếu thiếu ----
+    QR_PASSWORD = st.secrets.get("QR_PASSWORD") or st.secrets.get("qr_password") or st.secrets.get("app_password")
+
+    mat_khau = st.text_input("🔑 Nhập mật khẩu xem thông tin xe", type="password", placeholder="Mật khẩu QR")
     if mat_khau:
-        if mat_khau.strip() != str(APP_PASSWORD):
-            st.error("❌ Sai mật khẩu!")
+        if mat_khau.strip() != str(QR_PASSWORD):
+            st.error("❌ Sai mật khẩu QR! Hãy nhập mật khẩu xem QR, không phải mật khẩu app.")
         else:
             df0 = load_df()
             df_tmp = df0.copy()
             df_tmp["__norm"] = df_tmp["Biển số"].astype(str).apply(normalize_plate)
             ket_qua = df_tmp[df_tmp["__norm"] == normalize_plate(bien_so_url)]
             if ket_qua.empty:
-                st.error(f"❌ Không tìm thấy xe có biển số: {bien_so_url}")
+                st.error(f"❌ Không tìm thấy xe có biển số hoặc mã QR: {bien_so_url}")
             else:
                 st.success("✅ Thông tin xe:")
                 st.dataframe(ket_qua.drop(columns=["__norm"]), hide_index=True, use_container_width=True)
         st.stop()
     else:
-        st.info("Vui lòng nhập mật khẩu để xem thông tin xe.")
+        st.info("Vui lòng nhập mật khẩu QR để xem thông tin xe.")
         st.stop()
+
 
 # Cổng đăng nhập app
 if "auth_ok" not in st.session_state:
@@ -339,7 +344,7 @@ menu = [
     "📥 Tải dữ liệu lên",
     "🎁 Tạo mã QR hàng loạt",
     "📤 Xuất ra Excel",
-    "📊 Thống kê xe theo đơn vị",
+    "📊 Thống kê",
     "🤖 Trợ lý AI"
 ]
 choice = st.sidebar.radio("📌 Chọn chức năng", menu, index=0)
@@ -660,9 +665,22 @@ elif choice == "📤 Xuất ra Excel":
                        file_name="DanhSachXe.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-elif choice == "📊 Thống kê xe theo đơn vị":
+elif choice == "📊 Thống kê":
     st.markdown("## 📊 Dashboard thống kê xe theo đơn vị")
     df_stats = df.copy()
+    import unicodedata
+
+def _unit_norm(x: str) -> str:
+    s = "" if x is None else str(x)
+    s = s.replace("\xa0", " ")                 # bỏ NBSP
+    s = unicodedata.normalize("NFKC", s)       # chuẩn hóa unicode
+    s = s.replace("Ð", "Đ").replace("đ", "Đ")  # đồng nhất Đ/đ
+    s = re.sub(r"\s+", " ", s).strip()         # gom khoảng trắng
+    return s
+
+# cột đơn vị chuẩn hóa chỉ dùng cho groupby (không ghi về sheet)
+df_stats["__unit"] = df_stats["Tên đơn vị"].apply(_unit_norm)
+
     ten_day_du = {
         "HCTH": "Phòng Hành Chính Tổng hợp","TCCB": "Phòng Tổ chức Cán bộ",
         "ĐTĐH": "Phòng Đào tạo Đại học","ĐTSĐH": "Phòng Đào tạo Sau đại học",
@@ -677,7 +695,13 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         "Trường Dược": "Trường Dược","Trường ĐD-KTYH": "Trường ĐD-KTYH","Thư viện": "Thư viện",
         "Tạp chí Y học": "Tạp chí Y học", "YHCTC": "Khoa Y học Cổ truyền", "HTQT": "Phòng Hợp tác Quốc tế"
     }
-    thong_ke = df_stats.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
+    thong_ke = (
+    df_stats.groupby("__unit", dropna=False)
+    .size()
+    .reset_index(name="Số lượng xe")
+    .rename(columns={"__unit": "Tên đơn vị"})
+    )
+    
     thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
     thong_ke["Tên đầy đủ"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
     import plotly.express as px
