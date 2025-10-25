@@ -56,7 +56,7 @@ def get_sheet():
         ws = sh.worksheet(WORKSHEET_NAME)
     except gspread.WorksheetNotFound:
         ws = sh.add_worksheet(title=WORKSHEET_NAME, rows="2000", cols="20")
-        # tạo header mặc định nếu sheet mới tinh
+        # tạo header mặc định nếu sheet mới
         gs_retry(ws.update, "A1", [REQUIRED_COLUMNS])
 
     return ws
@@ -284,7 +284,7 @@ if not APP_PASSWORD:
     st.error("❌ Thiếu mật khẩu ứng dụng trong secrets (app_password hoặc qr_password).")
     st.stop()
 
-# Thay bằng Sheet của bạn
+# Sheet ID trong gg sheet
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
 try:
     ws = get_sheet()
