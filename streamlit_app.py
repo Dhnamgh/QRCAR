@@ -147,6 +147,64 @@ def assign_codes_for_row(row: pd.Series, counters: dict) -> pd.Series:
             counters[ma_dv] = max(counters.get(ma_dv, 0), int(m.group(1)))
         row["Mã thẻ"] = ma_the
     return row
+def fill_missing_codes_strict(df_new: pd.DataFrame, df_cur: pd.DataFrame) -> pd.DataFrame:
+    """
+    - Tự gán 'Mã đơn vị' từ 'Tên đơn vị' (theo DON_VI_MAP). Nếu không map được → để rỗng.
+    - Tự sinh 'Mã thẻ' theo từng 'Mã đơn vị' (giữ lại mã đã có đúng format).
+    - Seed số chạy dựa trên df_cur hiện có.
+    """
+    df = df_new.copy()
+
+    # Bảo đảm đủ cột & loại NaN thành rỗng
+    for c in REQUIRED_COLUMNS:
+        if c not in df.columns:
+            df[c] = ""
+    df = df.fillna("")
+
+    # 1) Mã đơn vị
+    def _resolve_unit(row):
+        ma_cur = str(row.get("Mã đơn vị", "")).strip().upper()
+        if ma_cur:
+            return ma_cur
+        name = str(row.get("Tên đơn vị", "")).strip()
+        if not name:
+            return ""
+        return DON_VI_MAP.get(name, "").upper()
+
+    df["Mã đơn vị"] = df.apply(_resolve_unit, axis=1)
+
+    # 2) Mã thẻ theo từng đơn vị (seed từ dữ liệu đang có)
+    counters = build_unit_counters(df_cur)
+
+    def _gen_codes(group: pd.DataFrame) -> pd.Series:
+        unit = str(group.name or "").strip().upper()
+        if not unit:
+            # không có đơn vị → trả nguyên giá trị (nhưng đổi NaN -> rỗng)
+            return group["Mã thẻ"].astype(str).replace({"nan": ""})
+        cur = counters.get(unit, 0)
+        out = []
+        for v in group["Mã thẻ"].astype(str):
+            v2 = (v or "").strip().upper()
+            if v2 in ("", "NAN"):
+                cur += 1
+                out.append(f"{unit}{cur:03d}")
+            else:
+                m = re.match(rf"^{unit}(\d{{3}})$", v2)
+                if m:
+                    cur = max(cur, int(m.group(1)))
+                out.append(v2)
+        counters[unit] = cur
+        return pd.Series(out, index=group.index)
+
+    df["Mã thẻ"] = df.groupby("Mã đơn vị", dropna=False, group_keys=False).apply(_gen_codes)
+
+    # 3) Chuẩn hoá STT (nếu muốn)
+    try:
+        df["STT"] = pd.RangeIndex(1, len(df) + 1)
+    except Exception:
+        pass
+
+    return df[REQUIRED_COLUMNS].copy()
 
 def reindex_stt(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -491,9 +549,7 @@ elif choice == "📥 Tải dữ liệu lên":
                         if c not in df_cur.columns:
                             df_cur[c] = ""
 
-                counters = build_unit_counters(df_cur)
-                df_to_write = df_up.apply(lambda r: assign_codes_for_row(r, counters), axis=1)
-                df_to_write = df_to_write[REQUIRED_COLUMNS].copy()
+                df_to_write = fill_missing_codes_strict(df_up, df_cur)
 
                 if dry_run:
                     st.info("🔎 Chạy thử: không ghi Google Sheets.")
