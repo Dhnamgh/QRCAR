@@ -29,7 +29,7 @@ from google.oauth2.service_account import Credentials
 import gspread
 
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
-WORKSHEET_NAME = "Sheet 1"
+WORKSHEET_NAME = "Sheet1"
 
 @st.cache_resource(show_spinner=False)
 def get_sheet():
