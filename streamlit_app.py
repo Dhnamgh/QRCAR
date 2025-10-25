@@ -283,21 +283,13 @@ def load_df():
         st.error(f"❌ Không thể tải dữ liệu xe: {e}")
         st.stop()
 
-# ====== MẬT KHẨU ======
-# ====== MẬT KHẨU ======
-APP_PASSWORD = _get_secret("app_password")            # vào app quản trị
-QR_PASSWORD  = _get_secret("QR_PASSWORD", "qr_password", "qrpassword", "qr_pwd")
+# ====== QR gate: mật khẩu QR riêng & chỉ hiển thị đúng 1 xe rồi dừng ======
+QR_PASSWORD = _get_secret("QR_PASSWORD", "qr_password", "qrpassword", "qr_pwd")  # CHỈ mật khẩu QR
 
-# ====== QR GATE: chỉ xem 1 xe theo ?id=... rồi DỪNG ======
-# Lấy id từ query (?id=TRY001 hoặc ?id=59A12345)
-params = {}
+# Lấy id=? tương thích API mới/cũ
 try:
-    # Streamlit mới: st.query_params; cũ: experimental_get_query_params()
-    params_obj = getattr(st, "query_params", None)
-    if params_obj is not None:
-        params = dict(params_obj)
-    else:
-        params = st.experimental_get_query_params()
+    qp = getattr(st, "query_params", None)
+    params = dict(qp) if qp is not None else st.experimental_get_query_params()
 except Exception:
     params = st.experimental_get_query_params()
 
@@ -307,10 +299,10 @@ if "id" in params:
     qr_id = v[0] if isinstance(v, list) else str(v)
 
 if qr_id:
-    # Ẩn toàn bộ sidebar/navigation khi mở bằng QR
+    # Ẩn sidebar khi mở bằng QR
     st.markdown("""
         <style>
-        [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stSidebarContent"] {display:none!important;}
+        [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stSidebarContent"]{display:none!important;}
         </style>
     """, unsafe_allow_html=True)
 
@@ -325,19 +317,19 @@ if qr_id:
     if pwd.strip() != QR_PASSWORD:
         st.error("❌ Sai mật khẩu QR."); st.stop()
 
-    # Đúng mật khẩu QR → chỉ hiển thị đúng bản ghi rồi DỪNG
+    # Đúng mật khẩu QR → chỉ hiển thị bản ghi khớp rồi DỪNG
     df0 = load_df().copy()
     df0["__plate_norm"] = df0["Biển số"].astype(str).apply(normalize_plate)
     df0["__card_up"]    = df0.get("Mã thẻ", "").astype(str).str.upper().str.strip()
 
-    qr_up = str(qr_id).upper().strip()
-    qr_norm = normalize_plate(str(qr_id))
+    q_up = str(qr_id).upper().strip()
+    q_norm = normalize_plate(str(qr_id))
 
     # Ưu tiên khớp MÃ THẺ; nếu không có thì khớp biển số chuẩn hóa
-    if re.fullmatch(r"[A-Z]{3}\d{3}", qr_up):
-        view = df0[df0["__card_up"].eq(qr_up)]
+    if re.fullmatch(r"[A-Z]{3}\d{3}", q_up):
+        view = df0[df0["__card_up"].eq(q_up)]
     else:
-        view = df0[df0["__plate_norm"].eq(qr_norm)]
+        view = df0[df0["__plate_norm"].eq(q_norm)]
 
     if view.empty:
         st.error(f"Không tìm thấy xe với mã/biển số: {qr_id}")
@@ -347,8 +339,7 @@ if qr_id:
             view.drop(columns=["__plate_norm","__card_up"], errors="ignore"),
             hide_index=True, use_container_width=True
         )
-    st.stop()  # RẤT QUAN TRỌNG: không cho rơi xuống phần app
-
+    st.stop()  # BẮT BUỘC: không cho chạy xuống app quản trị
 
 # Cổng đăng nhập app
 if "auth_ok" not in st.session_state:
@@ -777,47 +768,53 @@ elif choice == "📊 Thống kê":
 
 
 elif choice == "🤖 Trợ lý AI":
-    import unicodedata
-    st.subheader("🤖 Trợ lý AI (lọc chính xác)")
+    st.subheader("🤖 Trợ lý AI (lọc theo TỪ trọn vẹn, nhiều từ – AND, phân biệt dấu)")
 
-    def vn_fold(s: str) -> str:
-        s = "" if s is None else str(s)
-        s = unicodedata.normalize("NFD", s)
-        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")  # bỏ dấu
-        return s.lower().strip()
+    # Tokenize tên: GIỮ dấu tiếng Việt, tách thành các "từ" unicode (a–z, 0–9, và chữ có dấu)
+    def name_tokens_vn(s: str):
+        s = "" if s is None else str(s).lower()
+        return re.findall(r"[0-9A-Za-zÀ-ỹ]+", s)
 
-    def name_tokens(s: str):
-        return re.findall(r"[a-z0-9]+", vn_fold(s))
+    # Tách truy vấn thành các "từ" (tokens) – hỗ trợ nhiều từ => điều kiện AND
+    def query_tokens_vn(q: str):
+        q = (q or "").strip().lower()
+        # Hỗ trợ ngăn cách bằng khoảng trắng hoặc dấu phẩy
+        qs = re.split(r"[,\s]+", q)
+        return [t for t in qs if t]
 
-    q = st.text_input("Nhập từ khóa (ví dụ: 'an', '73', 'TRY', 'BVY', 'Trường Y', 'BV ĐHYD')").strip()
-    if q:
+    q_raw = st.text_input("Nhập từ khóa (ví dụ: 'an', 'đạt', 'nam văn', '73', 'TRY', 'BVY', 'Trường Y', 'BV ĐHYD')").strip()
+    if q_raw:
         base = df.copy()
-        base["__name_tokens"] = base.get("Họ tên", "").astype(str).apply(name_tokens)
+        base["__name_tokens"] = base.get("Họ tên", "").astype(str).apply(name_tokens_vn)
         base["__plate_norm"]  = base.get("Biển số", "").astype(str).apply(normalize_plate)
         base["__unit_code"]   = base.get("Mã đơn vị", "").astype(str).str.upper().str.strip()
         base["__card_code"]   = base.get("Mã thẻ", "").astype(str).str.upper().str.strip()
 
-        q_fold = vn_fold(q)
-        q_up   = q.upper()
+        q_up    = q_raw.upper()
+        q_tokens = query_tokens_vn(q_raw)
 
         res = base
 
-        # 1) Nếu toàn số → lọc biển số chứa chuỗi số đó
-        if re.fullmatch(r"\d{2,}", q):
-            res = res[res["__plate_norm"].str.contains(q, na=False)]
+        # 1) Nếu toàn số → lọc biển số CHỨA chuỗi số đó (ví dụ '73')
+        if re.fullmatch(r"\d{2,}", q_raw):
+            res = res[res["__plate_norm"].str.contains(q_raw, na=False)]
         else:
-            # 2) Mã đơn vị / mã thẻ
-            if q_up in DON_VI_MAP.values():                 # ví dụ TRY, BVY
+            # 2) Mã đơn vị / mã thẻ (ưu tiên)
+            if q_up in DON_VI_MAP.values():                # ví dụ TRY, BVY
                 res = res[res["__unit_code"].eq(q_up)]
-            elif re.fullmatch(r"[A-Z]{3}\d{3}", q_up):      # ví dụ TRY012
+            elif re.fullmatch(r"[A-Z]{3}\d{3}", q_up):     # ví dụ TRY012
                 res = res[res["__card_code"].eq(q_up)]
             else:
-                # 3) Tên đơn vị chuẩn
+                # 3) Tên đơn vị chuẩn (không fuzzy)
                 if q_up in map(str.upper, DON_VI_MAP.keys()):
                     res = res[res["Tên đơn vị"].str.upper().eq(q_up)]
                 else:
-                    # 4) Mặc định: TỪ TRỌN VẸN trong tên (ví dụ 'an' chỉ khớp 'An', không khớp 'Ánh/ẩn/khang')
-                    res = res[res["__name_tokens"].apply(lambda toks: q_fold in toks)]
+                    # 4) Mặc định: AND trên các token họ tên (GIỮ dấu, TỪ trọn vẹn)
+                    #    - 'an' chỉ khớp token 'an' (không khớp 'ân', 'ẩn', 'khang'…)
+                    #    - 'đạt' khớp đúng 'đạt'
+                    #    - 'nam văn' yêu cầu cả 'nam' và 'văn' đều xuất hiện trong tên
+                    qset = set(q_tokens)
+                    res = res[res["__name_tokens"].apply(lambda toks: qset.issubset(set(toks)))]
 
         res = res.drop(columns=["__name_tokens","__plate_norm","__unit_code","__card_code"], errors="ignore")
 
@@ -826,8 +823,6 @@ elif choice == "🤖 Trợ lý AI":
         else:
             st.success(f"Tìm thấy {len(res)} kết quả.")
             st.dataframe(res, hide_index=True, use_container_width=True)
-
-
 
 
 # ---------- Footer ----------
