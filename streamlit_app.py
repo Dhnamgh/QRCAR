@@ -287,7 +287,7 @@ if not APP_PASSWORD:
 # Thay bằng Sheet của bạn
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
 try:
-    sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
+    ws = get_sheet()
 except Exception as e:
     st.error(f"❌ Lỗi mở Google Sheet: {e}")
     st.stop()
