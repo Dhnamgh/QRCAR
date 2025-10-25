@@ -475,8 +475,7 @@ elif choice == "📥 Tải dữ liệu lên":
             df_up["Tên đơn vị"] = df_up["Tên đơn vị"].astype(str).str.replace("Ð", "Đ").str.replace("đ", "Đ")
             df_up["Tên đơn vị"] = df_up["Tên đơn vị"].replace(alias)
 
-        st.info(f"Đã nạp {len(df_up)} dòng. Xem nhanh 10 dòng đầu:")
-        st.dataframe(df_up.head(10), hide_index=True, use_container_width=True)
+        st.info(f"Đã nạp {len(df_up)} dòng.")
 
         if st.button("🚀 Thực thi"):
             try:
