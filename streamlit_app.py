@@ -284,23 +284,6 @@ if not APP_PASSWORD:
     st.error("❌ Thiếu mật khẩu ứng dụng trong secrets (app_password hoặc qr_password).")
     st.stop()
 
-# ---------- Google Sheet init (giữ nguyên secrets/JSON) ----------
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-if "google_service_account" not in st.secrets:
-    st.error("❌ Thiếu [google_service_account] trong secrets.")
-    st.stop()
-try:
-    creds_dict = dict(st.secrets["google_service_account"])  # không đổi cấu trúc
-    pk = str(creds_dict.get("private_key", ""))
-    if ("-----BEGIN" in pk) and ("\\n" in pk) and ("\n" not in pk):
-        pk = pk.replace("\\r\\n", "\\n").replace("\\n", "\n")
-        creds_dict["private_key"] = pk
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-except Exception as e:
-    st.error(f"❌ Lỗi khởi tạo Google Credentials: {e}")
-    st.stop()
-
 # Thay bằng Sheet của bạn
 SHEET_ID = "1a_pMNiQbD5yO58abm4EfNMz7AbQTBmG8QV3yEN500uc"
 try:
@@ -310,10 +293,11 @@ except Exception as e:
     st.stop()
 
 # ---------- Load data ----------
+ws = get_sheet()
 @st.cache_data(ttl=60)
 def load_df():
     try:
-        data = sheet.get_all_records()
+        data = ws.get_all_records()
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"❌ Không thể tải dữ liệu xe: {e}")
@@ -505,7 +489,7 @@ elif choice == "➕ Đăng ký xe mới":
                 counters = build_unit_counters(df_current)
                 cur = counters.get(ma_don_vi, 0) + 1
                 ma_the = f"{ma_don_vi}{cur:03d}"
-                sheet.append_row([
+                gs_retry(ws.append_row, [
                     int(len(df_current) + 1),
                     ho_ten,
                     bien_so,
@@ -573,7 +557,7 @@ elif choice == "✏️ Cập nhật xe":
                         so_dien_thoai_moi,
                         email_moi
                     ]
-                    sheet.update(f"A{index+2}:I{index+2}", [payload])
+                    gs_retry(ws.update, f"A{index+2}:I{index+2}", [payload])
                     st.success("✅ Đã cập nhật thông tin xe thành công!")
                     # Tạo QR cho xe sau cập nhật (dùng biển số mới)
                     norm = normalize_plate(bien_so_moi)
@@ -604,7 +588,7 @@ elif choice == "🗑️ Xóa xe":
                 index = int(idx_np)
                 row = ket_qua.iloc[0]
                 if st.button("Xác nhận xóa"):
-                    sheet.delete_rows(int(index) + 2)
+                    gs_retry(ws.delete_rows, int(index) + 2)
                     st.success(f"🗑️ Đã xóa xe có biển số `{row['Biển số']}` thành công!")
                     st.session_state.df = load_df()
         except Exception as e:
@@ -758,8 +742,7 @@ elif choice == "🎁 Tạo mã QR hàng loạt":
         df_qr = df.copy()
 
     # Làm sạch & ẨN INDEX
-    df_qr = df_qr.loc[:, ~df_qr.columns.str.match(r"^\s*Unnamed", na=False)]
-    df_qr = df_qr.reset_index(drop=True)
+    df_qr = clean_df(df_qr)
 
     for col in ["Mã thẻ", "Biển số", "Mã đơn vị"]:
         if col not in df_qr.columns:
