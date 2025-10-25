@@ -740,7 +740,7 @@ elif choice == "📊 Thống kê":
         "Trường ĐD-KTYH": "Trường ĐD-KTYH",
         "Thư viện": "Thư viện",
         "Tạp chí Y học": "Tạp chí Y học",
-        "YHCTC": "Khoa Y học Cổ truyền",
+        "YHCT": "Khoa Y học Cổ truyền",
         "HTQT": "Phòng Hợp tác Quốc tế"
     }
 
