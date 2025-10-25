@@ -668,42 +668,59 @@ elif choice == "📤 Xuất ra Excel":
 elif choice == "📊 Thống kê":
     st.markdown("## 📊 Dashboard thống kê xe theo đơn vị")
     df_stats = df.copy()
+
     import unicodedata
+    def _unit_norm(x: str) -> str:
+        s = "" if x is None else str(x)
+        s = s.replace("\xa0", " ")
+        s = unicodedata.normalize("NFKC", s)
+        s = s.replace("Ð", "Đ").replace("đ", "Đ")
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
 
-def _unit_norm(x: str) -> str:
-    s = "" if x is None else str(x)
-    s = s.replace("\xa0", " ")                 # bỏ NBSP
-    s = unicodedata.normalize("NFKC", s)       # chuẩn hóa unicode
-    s = s.replace("Ð", "Đ").replace("đ", "Đ")  # đồng nhất Đ/đ
-    s = re.sub(r"\s+", " ", s).strip()         # gom khoảng trắng
-    return s
-
-# cột đơn vị chuẩn hóa chỉ dùng cho groupby (không ghi về sheet)
-df_stats["__unit"] = df_stats["Tên đơn vị"].apply(_unit_norm)
+    df_stats["__unit"] = df_stats["Tên đơn vị"].apply(_unit_norm)
 
     ten_day_du = {
-        "HCTH": "Phòng Hành Chính Tổng hợp","TCCB": "Phòng Tổ chức Cán bộ",
-        "ĐTĐH": "Phòng Đào tạo Đại học","ĐTSĐH": "Phòng Đào tạo Sau đại học",
-        "KHCN": "Phòng Khoa học Công nghệ","KHTC": "Phòng Kế hoạch Tài chính",
-        "QTGT": "Phòng Quản trị Giáo tài","TTPC": "Phòng Thanh tra Pháp chế",
-        "ĐBCLGD&KT": "Phòng Đảm bảo chất lượng GD và Khảo thí","CTSV": "Phòng Công tác sinh viên",
-        "KHCB": "Khoa Khoa học Cơ bản","RHM": "Khoa Răng hàm mặt","YTCC": "Khoa Y tế Công cộng",
-        "PK.CKRHM": "Phòng khám RHM","TT.KCCLXN": "Trung tâm Kiểm chuẩn CLXN",
-        "TT.KHCN UMP": "Trung tâm KHCN UMP","TT.YSHPT": "Trung tâm Y sinh học phân tử",
-        "KTX": "Ký túc xá","BV ĐHYD": "Bệnh viện ĐHYD","TT.PTTN": "Trung tâm PTTN",
-        "TT. GDYH": "Trung tâm GDYH","VPĐ": "VP Đoàn thể","Trường Y": "Trường Y",
-        "Trường Dược": "Trường Dược","Trường ĐD-KTYH": "Trường ĐD-KTYH","Thư viện": "Thư viện",
-        "Tạp chí Y học": "Tạp chí Y học", "YHCTC": "Khoa Y học Cổ truyền", "HTQT": "Phòng Hợp tác Quốc tế"
+        "HCTH": "Phòng Hành Chính Tổng hợp",
+        "TCCB": "Phòng Tổ chức Cán bộ",
+        "ĐTĐH": "Phòng Đào tạo Đại học",
+        "ĐTSĐH": "Phòng Đào tạo Sau đại học",
+        "KHCN": "Phòng Khoa học Công nghệ",
+        "KHTC": "Phòng Kế hoạch Tài chính",
+        "QTGT": "Phòng Quản trị Giáo tài",
+        "TTPC": "Phòng Thanh tra Pháp chế",
+        "ĐBCLGD&KT": "Phòng Đảm bảo chất lượng GD và Khảo thí",
+        "CTSV": "Phòng Công tác sinh viên",
+        "KHCB": "Khoa Khoa học Cơ bản",
+        "RHM": "Khoa Răng hàm mặt",
+        "YTCC": "Khoa Y tế Công cộng",
+        "PK.CKRHM": "Phòng khám RHM",
+        "TT.KCCLXN": "Trung tâm Kiểm chuẩn CLXN",
+        "TT.KHCN UMP": "Trung tâm KHCN UMP",
+        "TT.YSHPT": "Trung tâm Y sinh học phân tử",
+        "KTX": "Ký túc xá",
+        "BV ĐHYD": "Bệnh viện ĐHYD",
+        "TT.PTTN": "Trung tâm PTTN",
+        "TT. GDYH": "Trung tâm GDYH",
+        "VPĐ": "VP Đoàn thể",
+        "Trường Y": "Trường Y",
+        "Trường Dược": "Trường Dược",
+        "Trường ĐD-KTYH": "Trường ĐD-KTYH",
+        "Thư viện": "Thư viện",
+        "Tạp chí Y học": "Tạp chí Y học",
+        "YHCTC": "Khoa Y học Cổ truyền",
+        "HTQT": "Phòng Hợp tác Quốc tế"
     }
+
     thong_ke = (
-    df_stats.groupby("__unit", dropna=False)
-    .size()
-    .reset_index(name="Số lượng xe")
-    .rename(columns={"__unit": "Tên đơn vị"})
+        df_stats.groupby("__unit", dropna=False)
+        .size()
+        .reset_index(name="Số lượng xe")
+        .rename(columns={"__unit": "Tên đơn vị"})
     )
-    
     thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
     thong_ke["Tên đầy đủ"] = thong_ke["Tên đơn vị"].apply(lambda x: ten_day_du.get(x, x))
+
     import plotly.express as px
     fig = px.bar(thong_ke, x="Tên đơn vị", y="Số lượng xe", color="Tên đơn vị", text="Số lượng xe",
                  title="📈 Biểu đồ số lượng xe theo đơn vị")
@@ -717,61 +734,61 @@ df_stats["__unit"] = df_stats["Tên đơn vị"].apply(_unit_norm)
     thong_ke_display.index = range(1, len(thong_ke_display) + 1)
     st.dataframe(thong_ke_display, hide_index=True, use_container_width=True)
 
+
 elif choice == "🤖 Trợ lý AI":
-    st.subheader("🤖 Trợ lý AI")
-    q = st.text_input("Gõ câu ngắn, AI hiểu ngôn ngữ tự nhiên: ví dụ 'xe của Trường Y tên Hùng', '59A1', '0912345678'…")
+    import unicodedata
+    st.subheader("🤖 Trợ lý AI (lọc chính xác)")
+
+    def vn_fold(s: str) -> str:
+        s = "" if s is None else str(s)
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")  # bỏ dấu
+        return s.lower().strip()
+
+    q = st.text_input("Nhập từ khóa (ví dụ: 'nam', '73', 'TRY', 'BVY', 'Trường Y', 'BV ĐHYD')")
+
     if q:
-        # parser đơn giản
-        def fuzzy_ratio(a: str, b: str) -> float:
-            return difflib.SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
-        tokens = re.findall(r"[\wÀ-ỹ]+", q, flags=re.IGNORECASE)
-        filtered = df.copy()
-        applied = False
-        # lọc email/sđt/biển số
-        m_email = re.search(r"[\w\.-]+@[\w\.-]+", q)
-        if m_email:
-            filtered = filtered[filtered["Email"].astype(str).str.contains(m_email.group(0), case=False, regex=False)]
-            applied = True
-        m_phone = re.search(r"(0\d{8,11})", q)
-        if m_phone:
-            filtered = filtered[filtered["Số điện thoại"].astype(str).str.contains(m_phone.group(1), case=False, regex=False)]
-            applied = True
-        plate_like = [t for t in tokens if re.search(r"[A-Za-z].*\d|\d.*[A-Za-z]", t)]
-        if plate_like:
-            norm = normalize_plate(plate_like[0])
-            filtered["__norm"] = filtered["Biển số"].astype(str).apply(normalize_plate)
-            filtered = filtered[filtered["__norm"].str.contains(norm, na=False)]
-            filtered = filtered.drop(columns=["__norm"], errors="ignore")
-            applied = True
-        if not applied and tokens:
-            best_unit = None; best_score = 0
-            for t in tokens:
-                for name in DON_VI_MAP.keys():
-                    sc = fuzzy_ratio(t, name)
-                    if sc > best_score and sc > 0.75:
-                        best_unit = name; best_score = sc
-            if best_unit:
-                filtered = filtered[filtered["Tên đơn vị"].astype(str).str.contains(best_unit, case=False, regex=False)]
-                applied = True
-        if applied and not filtered.empty:
-            st.dataframe(filtered, hide_index=True, use_container_width=True)
+        base = df.copy()
+
+        # chuẩn bị cột chuẩn hóa
+        base["__name_fold"] = base.get("Họ tên", "").astype(str).apply(vn_fold)
+        base["__plate_norm"] = base.get("Biển số", "").astype(str).apply(normalize_plate)
+        base["__unit_name_norm"] = base.get("Tên đơn vị", "").astype(str)
+        base["__unit_code"] = base.get("Mã đơn vị", "").astype(str).str.upper().str.strip()
+        base["__card_code"] = base.get("Mã thẻ", "").astype(str).str.upper().str.strip()
+
+        q_raw = q.strip()
+        q_fold = vn_fold(q_raw)
+        q_up   = q_raw.upper()
+
+        result = base
+
+        # 1) Nếu toàn số → lọc biển số chứa dãy số đó
+        if re.fullmatch(r"\d{2,}", q_raw):
+            result = result[result["__plate_norm"].str.contains(q_raw, na=False)]
         else:
-            st.info("Không lọc được rõ ràng. Thử gợi ý gần đúng toàn bộ…")
-            scores = []
-            for idx, row in df.iterrows():
-                s = 0.0
-                s += 2.0 * fuzzy_ratio(q, row.get("Biển số", ""))
-                s += fuzzy_ratio(q, row.get("Họ tên", ""))
-                s += fuzzy_ratio(q, row.get("Mã thẻ", ""))
-                s += 0.8 * fuzzy_ratio(q, row.get("Tên đơn vị", ""))
-                s += 0.8 * fuzzy_ratio(q, row.get("Mã đơn vị", ""))
-                s += 0.5 * fuzzy_ratio(q, row.get("Số điện thoại", ""))
-                s += 0.6 * fuzzy_ratio(q, row.get("Email", ""))
-                scores.append((idx, s))
-            scores.sort(key=lambda x: x[1], reverse=True)
-            idxs = [i for i, _ in scores[:50]]
-            top = df.loc[idxs].copy()
-            st.dataframe(top, hide_index=True, use_container_width=True)
+            # 2) Nếu là mã đơn vị/mã thẻ → lọc chính xác tiền tố/mã
+            rev_map = {v: k for k, v in DON_VI_MAP.items()}
+            if q_up in rev_map:  # ví dụ TRY, BVY
+                result = result[result["__unit_code"].eq(q_up)]
+            elif re.fullmatch(r"[A-Z]{3}\d{3}", q_up):  # ví dụ TRY012
+                result = result[result["__card_code"].eq(q_up)]
+            else:
+                # 3) Nếu là tên đơn vị → lọc theo tên đơn vị (không fuzzy)
+                if q_up in map(str.upper, DON_VI_MAP.keys()):
+                    result = result[result["Tên đơn vị"].str.upper().eq(q_up)]
+                else:
+                    # 4) Mặc định: lọc họ tên KHÔNG DẤU chứa q (ví dụ 'nam')
+                    result = result[result["__name_fold"].str.contains(q_fold, na=False)]
+
+        result = result.drop(columns=["__name_fold","__plate_norm","__unit_name_norm","__unit_code","__card_code"], errors="ignore")
+
+        if result.empty:
+            st.info("Không tìm thấy kết quả trùng khớp.")
+        else:
+            st.success(f"Tìm thấy {len(result)} kết quả.")
+            st.dataframe(result, hide_index=True, use_container_width=True)
+
 
 
 # ---------- Footer ----------
