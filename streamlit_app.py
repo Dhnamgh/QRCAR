@@ -764,6 +764,7 @@ elif choice == "📊 Thống kê":
     st.markdown("#### 📋 Bảng thống kê chi tiết")
     thong_ke_display = thong_ke[["Tên đầy đủ", "Số lượng xe"]].rename(columns={"Tên đầy đủ": "Tên đơn vị"})
     thong_ke_display.index = range(1, len(thong_ke_display) + 1)
+    thong_ke_display["Số lượng xe"] = thong_ke_display["Số lượng xe"].astype(str)
     st.dataframe(thong_ke_display, hide_index=True, use_container_width=True)
 
 
