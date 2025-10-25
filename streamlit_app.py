@@ -25,7 +25,7 @@ DON_VI_MAP = {
     "Trường Dược": "TRD", "Trường ĐD-KTYH": "TRK", "KHCB": "KHB", "RHM": "RHM", "YTCC": "YTC",
     "PK.CKRHM": "CKR", "TT.KCCLXN": "KCL", "TT.PTTN": "PTN", "TT.ĐTNLYT": "DTL", "TT.CNTT": "CNT",
     "TT.KHCN UMP": "KCU", "TT.YSHPT": "YSH", "Thư viện": "TV", "KTX": "KTX", "Tạp chí Y học": "TCY",
-    "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD", "YHCT": "YHC"
+    "BV ĐHYD": "BVY", "TT. GDYH": "GDY", "VPĐ": "VPD", "YHCT": "YHC", "HTQT": "HTQ"
 }
 
 # Sheet/Worksheet dùng cố định
@@ -679,7 +679,7 @@ elif choice == "📊 Thống kê xe theo đơn vị":
         "KTX": "Ký túc xá","BV ĐHYD": "Bệnh viện ĐHYD","TT.PTTN": "Trung tâm PTTN",
         "TT. GDYH": "Trung tâm GDYH","VPĐ": "VP Đoàn thể","Trường Y": "Trường Y",
         "Trường Dược": "Trường Dược","Trường ĐD-KTYH": "Trường ĐD-KTYH","Thư viện": "Thư viện",
-        "Tạp chí Y học": "Tạp chí Y học", "YHCTC": "Khoa Y học Cổ truyền"
+        "Tạp chí Y học": "Tạp chí Y học", "YHCTC": "Khoa Y học Cổ truyền", "HTQT": "Phòng Hợp tác Quốc tế"
     }
     thong_ke = df_stats.groupby("Tên đơn vị").size().reset_index(name="Số lượng xe")
     thong_ke = thong_ke.sort_values(by="Số lượng xe", ascending=False)
