@@ -107,10 +107,19 @@ def ensure_columns(df: pd.DataFrame):
     return df[REQUIRED_COLUMNS].copy()
 
 def resolve_ma_don_vi(ten_dv: str, ma_dv_cur: str = "") -> str:
+    """Luôn trả mã đơn vị nếu tên đơn vị hợp lệ; nếu chưa có trong map thì tạo tạm 3 ký tự đầu."""
     if str(ma_dv_cur).strip():
         return str(ma_dv_cur).strip().upper()
     name = str(ten_dv).strip()
-    return DON_VI_MAP.get(name, "").upper()
+    if not name:
+        return ""
+    ma = DON_VI_MAP.get(name)
+    if ma:
+        return ma.upper()
+    # fallback: lấy 3 chữ cái đầu (viết hoa, bỏ dấu)
+    name_ascii = re.sub(r"[^A-Z]", "", re.sub(r"Đ", "D", name.upper()))
+    return name_ascii[:3] if name_ascii else ""
+
 
 def build_unit_counters(df_cur: pd.DataFrame) -> dict:
     counters = {}
