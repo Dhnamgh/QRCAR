@@ -1,0 +1,27 @@
+name: Wake Up App
+
+on:
+  schedule:
+    # 22:45 UTC = 05:45 sáng VN (chuẩn bị ca sáng)
+    - cron: '45 22 * * 0-5'
+    # 05:30 UTC = 12:30 trưa VN (chuẩn bị ca chiều)
+    - cron: '30 5 * * 0-5'
+    # 09:45 UTC = 16:45 chiều VN (chuẩn bị ca tối)
+    - cron: '45 9 * * 0-5'
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Auto Empty Commit to Reset Streamlit Timer
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Auto keep-alive trigger [skip ci]"
+          git push
